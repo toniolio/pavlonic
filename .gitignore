@@ -10,6 +10,7 @@ __pycache__/
 # Secrets & env
 .env
 .env.*
+.env.local
 secrets/
 *.pem
 *.key
@@ -17,6 +18,7 @@ secrets/
 # Private docs and raw inputs
 docs-private/
 data-raw/
+data/private/
 exports/
 
 # Local DBs
