@@ -17,3 +17,5 @@ Run:
 - Make small, coherent commits.
 - Before coding: propose a short plan + list files to change.
 - After coding: run checks/tests and report results.
+- Default to verbose clarity: add docstrings + inline comments for non-trivial logic, and update docs when you add/modify behavior.
+- For any new script: include a “How it works” block at top + “How to run” + “Expected output”.
