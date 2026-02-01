@@ -1,0 +1,71 @@
+{
+  "study_id": "0001",
+  "is_synthetic": true,
+  "citation": {
+    "title": "Synthetic Study on Practice Spacing",
+    "authors": ["Sample Author", "Example Coauthor"],
+    "year": 2024,
+    "venue": "Journal of Synthetic Learning"
+  },
+  "study_type": "meta-analysis",
+  "viewer_entitlement": "public",
+  "groups": [],
+  "outcomes": [
+    {
+      "outcome_id": "O1",
+      "label": "Immediate performance",
+      "kind": "performance"
+    },
+    {
+      "outcome_id": "O2",
+      "label": "Delayed retention",
+      "kind": "learning"
+    }
+  ],
+  "results": [
+    {
+      "result_id": "R1",
+      "result_label": "Spaced vs. massed (performance)",
+      "result_description": "Synthetic effect on immediate performance",
+      "outcome_id": "O1",
+      "effect": {
+        "type": "cohen_d",
+        "value": 0.35,
+        "direction": "positive",
+        "provenance": "reported"
+      },
+      "significance": {
+        "type": "p_value",
+        "value": 0.04,
+        "provenance": "reported"
+      },
+      "reliability": {
+        "rating": "medium",
+        "provenance": "entered"
+      },
+      "notes": "Synthetic values for scaffolding only."
+    },
+    {
+      "result_id": "R2",
+      "result_label": "Spaced vs. massed (learning)",
+      "result_description": "Synthetic effect on retention",
+      "outcome_id": "O2",
+      "effect": {
+        "type": "cohen_d",
+        "value": 0.62,
+        "direction": "positive",
+        "provenance": "reported"
+      },
+      "significance": {
+        "type": "p_value",
+        "value": 0.01,
+        "provenance": "reported"
+      },
+      "reliability": {
+        "rating": "high",
+        "provenance": "entered"
+      },
+      "notes": "Synthetic values for scaffolding only."
+    }
+  ]
+}
