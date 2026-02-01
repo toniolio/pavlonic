@@ -2,10 +2,5 @@
 
 Canonical specs live privately in `docs-private/`.
 
-We keep sanitized, public-safe Markdown mirrors in `docs/specs/` that contain no sensitive or proprietary details.
-
-Update flow:
-
-1. Update the private spec in `docs-private/`.
-2. Create or refresh the sanitized Markdown mirror in `docs/specs/`.
-3. Commit the public Markdown mirror to the repo.
+The public repo may later contain sanitized summaries in `docs/specs/`, but it
+does not contain any public spec content yet.

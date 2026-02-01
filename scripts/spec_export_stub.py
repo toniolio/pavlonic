@@ -2,26 +2,27 @@
 """Public specs export stub.
 
 Purpose:
-    Provide a public-safe, manual export workflow for specs while ensuring the
-    expected public placeholders exist in the repository.
+    Provide a public-safe, manual export workflow for specs while verifying the
+    public specs README is present in the repository.
 
 What it validates:
-    - The local private specs directory (docs-private/) exists.
-    - Each required public mirror placeholder exists in docs/specs/.
+    - The public specs README exists at docs/specs/README.md.
+    - The local private specs directory (docs-private/) exists, but only warns
+      if it is missing.
 
 Expected output:
     - Always prints a short, numbered manual export checklist.
-    - Prints either a success message or a specific error summary.
+    - Prints either a success message or a clear warning/error summary.
 
 Failure conditions:
-    - Exits with status 1 if docs-private/ is missing.
-    - Exits with status 1 if any required public spec placeholder is missing.
-    - Exits with status 0 only when all validations pass.
+    - Exits with status 1 if docs/specs/README.md is missing.
+    - Never fails due to a missing docs-private/ directory.
+    - Exits with status 0 when required public docs are present.
 
 How it works:
     - Resolve the repo root from this file location.
-    - Check for docs-private/.
-    - Check for all required docs/specs/*.md placeholder files.
+    - Check for docs/specs/README.md (required).
+    - Check for docs-private/ (warn if missing).
 
 How to run:
     - make specs
@@ -34,7 +35,8 @@ Expected output (success):
     3) Sanitize the Markdown for public release
     4) Save the sanitized Markdown into docs/specs/
 
-    All public spec placeholders are present.
+    Public specs README is present.
+    All checks completed.
 """
 
 from __future__ import annotations
@@ -46,39 +48,32 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_PRIVATE = REPO_ROOT / "docs-private"
 DOCS_SPECS = REPO_ROOT / "docs" / "specs"
-
-# Placeholder files expected to exist as public mirrors.
-REQUIRED_PUBLIC_SPECS = (
-    "data-model.md",
-    "front-end-spec.md",
-    "evidence-synthesis-weighting.md",
-    "content-ops-playbook.md",
-    "identity-entitlements-seo.md",
-)
+PUBLIC_SPECS_README = DOCS_SPECS / "README.md"
 
 
 def main() -> int:
-    """Print export instructions and validate public spec placeholders."""
+    """Print export instructions and validate public spec docs."""
     print("Public specs export (manual for now)")
     print("1) Update canonical docs in docs-private/ (DOCX or source format)")
     print("2) Export to Markdown using your preferred tool")
     print("3) Sanitize the Markdown for public release")
     print("4) Save the sanitized Markdown into docs/specs/")
 
-    # Private specs must exist locally but are never committed.
+    # README must exist to anchor the public-safe workflow.
+    if not PUBLIC_SPECS_README.exists():
+        print("\nERROR: docs/specs/README.md is missing.")
+        print("Create it to document the public-safe specs workflow.")
+        return 1
+
+    # Private specs are expected locally, but absence should not fail CI.
     if not DOCS_PRIVATE.exists():
-        print("\nERROR: docs-private/ not found. Create it locally for private specs.")
-        return 1
+        print("\nWARNING: docs-private/ not found.")
+        print("Create it locally to store canonical private specs.")
+    else:
+        print("\nPrivate specs directory is present.")
 
-    # Ensure all public placeholders exist to prevent partial exports.
-    missing = [name for name in REQUIRED_PUBLIC_SPECS if not (DOCS_SPECS / name).exists()]
-    if missing:
-        print("\nERROR: Missing public spec placeholders:")
-        for name in missing:
-            print(f"- {DOCS_SPECS / name}")
-        return 1
-
-    print("\nAll public spec placeholders are present.")
+    print("Public specs README is present.")
+    print("All checks completed.")
     return 0
 
 
