@@ -1,10 +1,17 @@
+VENV_PY := ./.venv/bin/python
+VENV_RUFF := ./.venv/bin/ruff
+
+PY := $(shell if [ -x "$(VENV_PY)" ]; then echo "$(VENV_PY)"; else command -v python3 || command -v python; fi)
+RUFF := $(shell if [ -x "$(VENV_RUFF)" ]; then echo "$(VENV_RUFF)"; else command -v ruff; fi)
+
 .PHONY: setup lint test
 
 setup:
-	python -m pip install -r requirements.txt
+	$(PY) -m pip install --upgrade pip
+	$(PY) -m pip install ruff pytest
 
 lint:
-	ruff check .
+	$(RUFF) check .
 
 test:
-	python -m pytest
+	$(PY) -m pytest
