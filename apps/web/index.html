@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pavlonic Study Viewer</title>
+  </head>
+  <body>
+    <main>
+      <h1>Pavlonic Study Viewer</h1>
+
+      <section id="status" aria-live="polite">Loading study…</section>
+
+      <section id="study" hidden>
+        <h2 id="study-title"></h2>
+        <p id="study-citation"></p>
+
+        <h3>Outcomes</h3>
+        <ul id="outcomes-list"></ul>
+
+        <h3>Results</h3>
+        <table id="results-table" border="1" cellpadding="6">
+          <thead>
+            <tr>
+              <th>Result ID</th>
+              <th>Label</th>
+              <th>Outcome Kind</th>
+              <th>Effect</th>
+              <th>Significance</th>
+              <th>Reliability</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="error" hidden>
+        <h2>Unable to load study</h2>
+        <p id="error-message"></p>
+      </section>
+    </main>
+
+    <script src="app.js" defer></script>
+  </body>
+</html>
