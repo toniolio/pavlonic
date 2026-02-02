@@ -16,10 +16,23 @@ Expected output:
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from packages.core.loader import load_demo_study
 
 app = FastAPI(title="Pavlonic API", version="0.1.0")
+
+# Local dev-only CORS for the static web viewer.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:8001",
+        "http://localhost:8001",
+        "http://127.0.0.1:8000",
+    ],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/v1/studies/{study_id}")
