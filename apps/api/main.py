@@ -15,8 +15,6 @@ Expected output:
 
 from __future__ import annotations
 
-from dataclasses import asdict
-
 from fastapi import FastAPI, HTTPException
 
 from packages.core.loader import load_demo_study
@@ -32,4 +30,4 @@ def get_study(study_id: str) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Study not found") from exc
 
-    return asdict(study)
+    return study.to_dict()

@@ -15,7 +15,7 @@ Expected output:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Iterable
 
 
@@ -208,6 +208,10 @@ class Study:
     groups: list[dict]
     outcomes: list[Outcome]
     results: list[Result]
+
+    def to_dict(self) -> dict:
+        """Serialize the Study to a deterministic, public-safe dict."""
+        return asdict(self)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Study":

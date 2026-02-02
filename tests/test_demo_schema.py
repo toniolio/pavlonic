@@ -24,3 +24,9 @@ def test_demo_loader_accepts_study_id() -> None:
     study = load_demo_study("0001")
 
     assert study.study_id == "0001"
+
+
+def test_demo_study_to_dict_round_trip() -> None:
+    study = load_demo_study("0001")
+
+    assert study.to_dict()["study_id"] == "0001"
