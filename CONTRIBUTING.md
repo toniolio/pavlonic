@@ -27,16 +27,12 @@ If a change needs spec reference, write “See private specs” without quoting.
 
 ## Run API locally
 
+Use the single dev command to run both the API and web viewer:
+
 - `make setup`
-- `uvicorn apps.api.main:app --reload`
+- `make dev`
 
-Then open `http://127.0.0.1:8000/v1/studies/0001`.
+Then open:
 
-## Run web locally
-
-- In one terminal, run the API:
-  - `uvicorn apps.api.main:app --reload`
-- In another terminal, serve the static web viewer:
-  - `python -m http.server --directory apps/web 5173`
-
-Open `http://127.0.0.1:5173/study/0001`.
+- API: `http://127.0.0.1:8000/v1/studies/0001`
+- Web: `http://127.0.0.1:8001/`

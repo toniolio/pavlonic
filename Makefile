@@ -4,7 +4,7 @@ VENV_RUFF := ./.venv/bin/ruff
 PY := $(shell if [ -x "$(VENV_PY)" ]; then echo "$(VENV_PY)"; else command -v python3 || command -v python; fi)
 RUFF := $(shell if [ -x "$(VENV_RUFF)" ]; then echo "$(VENV_RUFF)"; else command -v ruff; fi)
 
-.PHONY: setup lint test specs
+.PHONY: setup lint test specs dev
 
 setup:
 	$(PY) -m pip install --upgrade pip
@@ -18,3 +18,6 @@ test:
 
 specs:
 	$(PY) scripts/spec_export_stub.py
+
+dev:
+	./scripts/dev.sh
