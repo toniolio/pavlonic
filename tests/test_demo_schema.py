@@ -18,3 +18,9 @@ def test_demo_results_reference_known_outcomes() -> None:
 
     for result in study.results:
         assert result.outcome_id in outcome_ids
+
+
+def test_demo_loader_accepts_study_id() -> None:
+    study = load_demo_study("0001")
+
+    assert study.study_id == "0001"
