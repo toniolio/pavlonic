@@ -24,3 +24,10 @@ Exact commands:
 Record architectural decisions in `docs/decisions/` using the ADR template.
 
 If a change needs spec reference, write “See private specs” without quoting.
+
+## Run API locally
+
+- `make setup`
+- `uvicorn apps.api.main:app --reload`
+
+Then open `http://127.0.0.1:8000/v1/studies/0001`.
