@@ -36,3 +36,8 @@ Then open:
 
 - API: `http://127.0.0.1:8000/v1/studies/0001`
 - Web: `http://127.0.0.1:8001/`
+
+Web study selector examples:
+
+- Hash route: `http://127.0.0.1:8001/#/study/0001`
+- Query param: `http://127.0.0.1:8001/?study=0001`

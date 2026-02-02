@@ -1,3 +1,5 @@
+import { getStudyIdFromLocation } from "./study_id.js";
+
 const API_BASE_URL = "http://127.0.0.1:8000";
 
 const statusEl = document.getElementById("status");
@@ -9,22 +11,6 @@ const titleEl = document.getElementById("study-title");
 const citationEl = document.getElementById("study-citation");
 const outcomesListEl = document.getElementById("outcomes-list");
 const resultsTableBody = document.querySelector("#results-table tbody");
-
-const MARKER_STRING = "Pavlonic Study Viewer";
-
-function getStudyIdFromPath() {
-  const pathParts = window.location.pathname.split("/").filter(Boolean);
-  if (pathParts.length >= 2 && pathParts[0] === "study") {
-    return pathParts[1];
-  }
-
-  const hash = window.location.hash.replace(/^#/, "").trim();
-  if (hash) {
-    return hash;
-  }
-
-  return "0001";
-}
 
 function clearChildren(element) {
   while (element.firstChild) {
@@ -71,13 +57,16 @@ function renderStudy(study) {
 }
 
 async function loadStudy() {
-  const studyId = getStudyIdFromPath();
+  const studyId = getStudyIdFromLocation(window.location);
   const url = `${API_BASE_URL}/v1/studies/${studyId}`;
 
   statusEl.textContent = `Fetching study ${studyId}…`;
 
   try {
     const response = await fetch(url);
+    if (response.status === 404) {
+      throw new Error(`Study not found: ${studyId}`);
+    }
     if (!response.ok) {
       throw new Error(`API returned ${response.status}`);
     }
@@ -96,8 +85,4 @@ async function loadStudy() {
   }
 }
 
-if (document.title.includes(MARKER_STRING)) {
-  loadStudy();
-} else {
-  loadStudy();
-}
+loadStudy();
