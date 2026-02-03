@@ -85,4 +85,19 @@ async function loadStudy() {
   }
 }
 
-loadStudy();
+let lastLoadedStudyId = null;
+
+function loadStudyIfNeeded() {
+  const studyId = getStudyIdFromLocation(window.location);
+  if (studyId === lastLoadedStudyId) {
+    return;
+  }
+
+  lastLoadedStudyId = studyId;
+  loadStudy();
+}
+
+window.addEventListener("hashchange", loadStudyIfNeeded);
+window.addEventListener("popstate", loadStudyIfNeeded);
+
+loadStudyIfNeeded();

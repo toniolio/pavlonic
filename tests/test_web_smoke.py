@@ -56,3 +56,5 @@ def test_study_id_parsing_and_404_message_template() -> None:
         encoding="utf-8"
     )
     assert "Study not found:" in app_js
+    assert "hashchange" in app_js
+    assert "popstate" in app_js
