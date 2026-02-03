@@ -22,6 +22,7 @@ from typing import Iterable
 PROVENANCE_VALUES = {"reported", "computed", "entered"}
 DIRECTION_VALUES = {"positive", "negative", "neutral", "unknown"}
 OUTCOME_KIND_VALUES = {"performance", "learning"}
+RESULT_VISIBILITY_VALUES = {"overall", "expanded"}
 
 
 def _require_keys(data: dict, keys: Iterable[str], context: str) -> None:
@@ -155,6 +156,7 @@ class Result:
     result_label: str
     result_description: str | None
     outcome_id: str
+    visibility: str
     effect: Effect
     significance: Significance
     reliability: Reliability
@@ -168,6 +170,7 @@ class Result:
                 "result_id",
                 "result_label",
                 "outcome_id",
+                "visibility",
                 "effect",
                 "significance",
                 "reliability",
@@ -177,6 +180,8 @@ class Result:
         _require_type(data["result_id"], str, "result.result_id")
         _require_type(data["result_label"], str, "result.result_label")
         _require_type(data["outcome_id"], str, "result.outcome_id")
+        _require_type(data["visibility"], str, "result.visibility")
+        _require_one_of(data["visibility"], RESULT_VISIBILITY_VALUES, "result.visibility")
 
         description = data.get("result_description")
         if description is not None:
@@ -191,6 +196,7 @@ class Result:
             result_label=data["result_label"],
             result_description=description,
             outcome_id=data["outcome_id"],
+            visibility=data["visibility"],
             effect=Effect.from_dict(data["effect"]),
             significance=Significance.from_dict(data["significance"]),
             reliability=Reliability.from_dict(data["reliability"]),

@@ -28,6 +28,7 @@
       "result_label": "Spaced vs. massed (performance)",
       "result_description": "Synthetic effect on immediate performance",
       "outcome_id": "O1",
+      "visibility": "overall",
       "effect": {
         "type": "cohen_d",
         "value": 0.35,
@@ -50,6 +51,7 @@
       "result_label": "Spaced vs. massed (learning)",
       "result_description": "Synthetic effect on retention",
       "outcome_id": "O2",
+      "visibility": "expanded",
       "effect": {
         "type": "cohen_d",
         "value": 0.62,

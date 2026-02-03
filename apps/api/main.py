@@ -18,6 +18,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from packages.core.entitlements import filter_results_for_viewer
 from packages.core.loader import load_demo_study
 
 app = FastAPI(title="Pavlonic API", version="0.1.0")
@@ -43,4 +44,4 @@ def get_study(study_id: str) -> dict:
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="Study not found") from exc
 
-    return study.to_dict()
+    return filter_results_for_viewer(study)
