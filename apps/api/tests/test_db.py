@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 
-from apps.api.db import DEFAULT_DB_URL, get_db_url, resolve_sqlite_file_path
+from apps.api.db import (
+    DEFAULT_DB_URL,
+    get_db_url,
+    init_sqlite_file,
+    resolve_sqlite_file_path,
+)
 
 
 def test_get_db_url_defaults_when_missing() -> None:
@@ -38,3 +43,15 @@ def test_resolve_sqlite_file_path_accepts_relative_path() -> None:
 def test_resolve_sqlite_file_path_accepts_absolute_path() -> None:
     path = resolve_sqlite_file_path("sqlite:////tmp/pavlonic.db")
     assert path == Path("/tmp/pavlonic.db")
+
+
+def test_init_sqlite_file_writes_header(tmp_path: Path) -> None:
+    db_path = tmp_path / "test.db"
+    db_path.write_bytes(b"")
+    assert db_path.stat().st_size == 0
+
+    db_url = f"sqlite:////{db_path}"
+    initialized = init_sqlite_file(db_url)
+
+    assert initialized == db_path
+    assert db_path.stat().st_size > 0

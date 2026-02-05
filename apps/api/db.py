@@ -68,7 +68,11 @@ def init_sqlite_file(db_url: str) -> Path:
     db_path = resolve_sqlite_file_path(db_url)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(str(db_path)):
-        pass
+    if db_path.exists() and db_path.stat().st_size == 0:
+        db_path.unlink()
+
+    with sqlite3.connect(str(db_path)) as conn:
+        conn.execute("PRAGMA user_version = 0;")
+        conn.commit()
 
     return db_path
