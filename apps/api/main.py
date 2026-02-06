@@ -1,9 +1,10 @@
-"""Minimal read-only API for demo study data.
+"""Minimal read-only API for DB-backed study data.
 
 How it works:
     - Exposes GET /v1/studies/{study_id}.
-    - Loads demo JSON via packages.core.loader.load_demo_study.
-    - Returns 404 when the demo file for the requested ID is missing.
+    - Loads study data from the SQLite DB via SQLAlchemy.
+    - Filters results server-side based on viewer entitlements.
+    - Returns 404 when the study ID is missing.
 
 How to run:
     - uvicorn apps.api.main:app --reload
@@ -15,11 +16,11 @@ Expected output:
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from packages.core.entitlements import filter_results_for_viewer
-from packages.core.loader import load_demo_study
+from apps.api.request_context import get_viewer_entitlement
+from apps.api.studies import load_study_payload
 
 app = FastAPI(title="Pavlonic API", version="0.1.0")
 
@@ -37,11 +38,11 @@ app.add_middleware(
 
 
 @app.get("/v1/studies/{study_id}")
-def get_study(study_id: str) -> dict:
-    """Return the demo Study payload by ID."""
-    try:
-        study = load_demo_study(study_id)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Study not found") from exc
+def get_study(study_id: str, request: Request) -> dict:
+    """Return the study payload by ID."""
+    viewer_entitlement = get_viewer_entitlement(request)
+    study = load_study_payload(study_id, viewer_entitlement)
+    if study is None:
+        raise HTTPException(status_code=404, detail="Study not found")
 
-    return filter_results_for_viewer(study)
+    return study
