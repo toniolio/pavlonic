@@ -1,0 +1,94 @@
+{
+  "outcomes": [
+    {
+      "kind": "performance",
+      "label": "Immediate performance",
+      "outcome_id": "O1",
+      "study_id": "0001"
+    },
+    {
+      "kind": "learning",
+      "label": "Delayed retention",
+      "outcome_id": "O2",
+      "study_id": "0001"
+    }
+  ],
+  "results": [
+    {
+      "effect": {
+        "direction": "positive",
+        "provenance": "reported",
+        "type": "cohen_d",
+        "value": 0.35
+      },
+      "outcome_id": "O1",
+      "reliability": {
+        "provenance": "entered",
+        "rating": "medium"
+      },
+      "result_description": "Synthetic effect on immediate performance",
+      "result_id": "R1",
+      "result_label": "Spaced vs. massed (performance)",
+      "significance": {
+        "provenance": "reported",
+        "type": "p_value",
+        "value": 0.04
+      },
+      "study_id": "0001",
+      "visibility": "overall"
+    },
+    {
+      "effect": {
+        "direction": "positive",
+        "provenance": "reported",
+        "type": "cohen_d",
+        "value": 0.62
+      },
+      "outcome_id": "O2",
+      "reliability": {
+        "provenance": "entered",
+        "rating": "high"
+      },
+      "result_description": "Synthetic effect on retention",
+      "result_id": "R2",
+      "result_label": "Spaced vs. massed (learning)",
+      "significance": {
+        "provenance": "reported",
+        "type": "p_value",
+        "value": 0.01
+      },
+      "study_id": "0001",
+      "visibility": "expanded"
+    }
+  ],
+  "studies": [
+    {
+      "citation": {
+        "authors": [
+          "Sample Author",
+          "Example Coauthor"
+        ],
+        "title": "Synthetic Study on Practice Spacing",
+        "venue": "Journal of Synthetic Learning",
+        "year": 2024
+      },
+      "is_synthetic": true,
+      "study_id": "0001",
+      "study_type": "meta-analysis"
+    }
+  ],
+  "techniques": [
+    {
+      "mapping_json": [
+        {
+          "result_id": "R1",
+          "study_id": "0001"
+        }
+      ],
+      "summary": "Practice distributed over time to improve retention.",
+      "technique_id": "spaced-practice",
+      "title": "Spaced practice",
+      "visibility": "overall"
+    }
+  ]
+}
