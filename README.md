@@ -32,7 +32,7 @@ make db-seed
 make dev
 ```
 
-Then hit the studies endpoint (default public vs paid override):
+Then hit the studies endpoint (default public vs paid override). `X-Pavlonic-Entitlement` is a dev-only testing override and must not be enabled or used in production:
 
 ```bash
 # Default public (no header)
