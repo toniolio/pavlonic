@@ -74,3 +74,32 @@ def test_route_parsing_and_error_message_template() -> None:
     assert "aria-controls" in app_js
     assert "hashchange" in app_js
     assert "popstate" in app_js
+
+
+def test_study_deep_link_targeting_markers() -> None:
+    module_path = Path(__file__).resolve().parents[1] / "apps" / "web" / "results_renderer.js"
+    route_module = Path(__file__).resolve().parents[1] / "apps" / "web" / "study_id.js"
+    study_json = (Path(__file__).resolve().parents[1] / "data" / "demo" / "study_0001.json").read_text(
+        encoding="utf-8"
+    )
+
+    code = f"""
+      import {{ getRouteFromLocation }} from '{route_module.as_uri()}';
+      import {{ renderStudyResultsHtml }} from '{module_path.as_uri()}';
+      const route = getRouteFromLocation({{ hash: '#/studies/0001?result=R1', search: '' }});
+      const study = {study_json};
+      const html = renderStudyResultsHtml(study, route.resultId);
+      console.log(JSON.stringify({{ html, route }}));
+    """
+
+    output = _run_node_module(code)
+    if output.get("skipped"):
+        return
+
+    html = output["html"]
+    assert output["route"]["resultId"] == "R1"
+    assert 'id="result-R1"' in html
+    assert 'data-result-targeted="true"' in html
+    assert 'data-result-row="true"' in html
+    assert 'data-result-toggle="true"' in html
+    assert 'data-result-detail="true"' in html
