@@ -1,4 +1,5 @@
 import { getRouteFromLocation } from "./study_id.js";
+import { renderStudyResultsHtml } from "./results_renderer.js";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
 
@@ -58,32 +59,35 @@ function renderStudy(study) {
   citationEl.textContent = formatCitation(study.citation);
 
   clearChildren(outcomesListEl);
-  const outcomeKindById = new Map();
 
   study.outcomes.forEach((outcome) => {
-    outcomeKindById.set(outcome.outcome_id, outcome.kind);
-
     const item = document.createElement("li");
     item.textContent = `${outcome.outcome_id}: ${outcome.label} (${outcome.kind})`;
     outcomesListEl.appendChild(item);
   });
 
-  clearChildren(resultsTableBody);
-  study.results.forEach((result) => {
-    const row = document.createElement("tr");
-    const outcomeKind = outcomeKindById.get(result.outcome_id) || "unknown";
-    row.id = `result-${result.result_id}`;
+  resultsTableBody.innerHTML = renderStudyResultsHtml(study);
+  wireResultToggles();
+}
 
-    row.innerHTML = `
-      <td>${result.result_id}</td>
-      <td>${result.result_label}</td>
-      <td>${outcomeKind}</td>
-      <td>${result.effect.type} ${result.effect.value} (${result.effect.direction}, ${result.effect.provenance})</td>
-      <td>${result.significance.type} ${result.significance.value} (${result.significance.provenance})</td>
-      <td>${result.reliability.rating} (${result.reliability.provenance})</td>
-    `;
+function wireResultToggles() {
+  const toggles = resultsTableBody.querySelectorAll("[data-result-toggle='true']");
+  toggles.forEach((toggle) => {
+    const detailId = toggle.getAttribute("aria-controls");
+    if (!detailId) {
+      return;
+    }
+    const detailRow = document.getElementById(detailId);
+    if (!detailRow) {
+      return;
+    }
 
-    resultsTableBody.appendChild(row);
+    toggle.addEventListener("click", () => {
+      const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+      const nextState = !isExpanded;
+      toggle.setAttribute("aria-expanded", nextState ? "true" : "false");
+      detailRow.hidden = !nextState;
+    });
   });
 }
 
