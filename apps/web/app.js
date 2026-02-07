@@ -54,7 +54,7 @@ function formatCitation(citation) {
   return `${authors} (${citation.year}). ${citation.title}. ${citation.venue}.`;
 }
 
-function renderStudy(study) {
+function renderStudy(study, targetResultId = null) {
   titleEl.textContent = study.citation.title;
   citationEl.textContent = formatCitation(study.citation);
 
@@ -66,7 +66,7 @@ function renderStudy(study) {
     outcomesListEl.appendChild(item);
   });
 
-  resultsTableBody.innerHTML = renderStudyResultsHtml(study);
+  resultsTableBody.innerHTML = renderStudyResultsHtml(study, targetResultId);
   wireResultToggles();
 }
 
@@ -335,7 +335,8 @@ function scrollToResult(resultId) {
   if (!resultId) {
     return;
   }
-  const target = document.getElementById(`result-${resultId}`);
+  const targeted = document.querySelector("[data-result-targeted='true']");
+  const target = targeted || document.getElementById(`result-${resultId}`);
   if (target) {
     target.scrollIntoView({ block: "start" });
   }
@@ -357,7 +358,8 @@ async function loadStudy(studyId, resultId) {
     }
 
     const study = await response.json();
-    renderStudy(study);
+    renderStudy(study, resultId);
+    lastStudyPayload = study;
     updateBreadcrumb({ page: "study", id: studyId }, study);
 
     setPageVisibility({ study: true });
@@ -395,6 +397,7 @@ async function loadTechnique(slug) {
 }
 
 let lastRouteKey = null;
+let lastStudyPayload = null;
 
 function handleRouteChange() {
   const route = getRouteFromLocation(window.location);
@@ -404,6 +407,9 @@ function handleRouteChange() {
     if (routeKey !== lastRouteKey) {
       loadStudy(route.id, route.resultId);
     } else if (route.resultId) {
+      if (lastStudyPayload) {
+        renderStudy(lastStudyPayload, route.resultId);
+      }
       scrollToResult(route.resultId);
     }
   }

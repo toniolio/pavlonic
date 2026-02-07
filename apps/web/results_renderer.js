@@ -37,6 +37,24 @@ function formatReliabilitySummary(reliability) {
   return `${rating} (${provenance})`;
 }
 
+function selectResultTarget(results, targetResultId) {
+  const normalized = String(targetResultId || "").trim();
+  if (!normalized) {
+    return { targetId: null, targetMiss: false };
+  }
+
+  const found = results.find((result) => result.result_id === normalized);
+  if (found) {
+    return { targetId: normalized, targetMiss: false };
+  }
+
+  if (results.length > 0) {
+    return { targetId: results[0].result_id, targetMiss: true };
+  }
+
+  return { targetId: null, targetMiss: true };
+}
+
 function renderDetailSection(title, bodyHtml) {
   return `
     <div>
@@ -106,12 +124,17 @@ function renderResultDetailHtml(result, outcome) {
   return sections.join("");
 }
 
-export function renderStudyResultsHtml(study) {
+export function renderStudyResultsHtml(study, targetResultId) {
   const results = Array.isArray(study && study.results) ? study.results : [];
   const outcomes = Array.isArray(study && study.outcomes) ? study.outcomes : [];
   const outcomeById = new Map(
     outcomes.map((outcome) => [outcome.outcome_id, outcome])
   );
+
+  const shouldTarget = Boolean(targetResultId);
+  const targeting = shouldTarget
+    ? selectResultTarget(results, targetResultId)
+    : { targetId: null, targetMiss: false };
 
   const columnCount = 7;
 
@@ -124,10 +147,17 @@ export function renderStudyResultsHtml(study) {
       const reliabilitySummary = formatReliabilitySummary(result.reliability);
       const detailId = `result-${result.result_id}-detail`;
 
+      const isTarget = targeting.targetId && result.result_id === targeting.targetId;
+      const targetAttrs = isTarget
+        ? ` data-result-targeted="true"${
+            targeting.targetMiss ? " data-result-target-miss=\"true\"" : ""
+          }`
+        : "";
+
       const detailHtml = renderResultDetailHtml(result, outcome);
 
       return `
-        <tr id="result-${escapeHtml(result.result_id)}" data-result-row="true">
+        <tr id="result-${escapeHtml(result.result_id)}" data-result-row="true"${targetAttrs}>
           <td>${escapeHtml(result.result_id)}</td>
           <td>${escapeHtml(result.result_label)}</td>
           <td>${escapeHtml(outcomeKind)}</td>
