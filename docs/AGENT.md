@@ -40,6 +40,10 @@ If private docs are not present locally, **do not guess**. Ask for the missing a
    - Small, coherent commits.
    - Each commit message explains the “why” (not just “wip”).
 
+5. **Epic closeout (when applicable):**
+   - Update the public phase snapshot and add ADR(s) capturing key decisions.
+   - Write a private debrief in `docs-private/ops-private/`.
+
 ## Architecture discipline (do not drift)
 - Do not invent new domain fields, rollup rules, or entitlement rules ad hoc.
 - If a change affects architecture or future interoperability:
