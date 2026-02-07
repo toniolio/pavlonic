@@ -87,7 +87,53 @@ function renderStudy(study) {
   });
 }
 
-function renderRefs(refs, resolvedResults) {
+function toDomSlug(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function buildRowDomId(tableId, rowId, index) {
+  const parts = [toDomSlug(tableId), toDomSlug(rowId || `row-${index}`)].filter(Boolean);
+  if (parts.length === 0) {
+    return `evidence-row-${index}`;
+  }
+  return `evidence-${parts.join("-")}`;
+}
+
+function formatChannelLabels(channel) {
+  const effectLabel = channel && channel.effect_size_label ? channel.effect_size_label : "Not computed";
+  const reliabilityLabel = channel && channel.reliability_label ? channel.reliability_label : "Not assessed";
+  return { effectLabel, reliabilityLabel };
+}
+
+function renderCounts(counts) {
+  if (!counts || typeof counts !== "object") {
+    return null;
+  }
+
+  const entries = [];
+  if (counts.studies_count !== undefined) {
+    entries.push(`Studies: ${counts.studies_count}`);
+  }
+  if (counts.subjects_total !== undefined) {
+    entries.push(`Subjects: ${counts.subjects_total}`);
+  }
+  if (counts.meta_analyses_count !== undefined) {
+    entries.push(`Meta-analyses: ${counts.meta_analyses_count}`);
+  }
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  const line = document.createElement("p");
+  line.textContent = entries.join(" · ");
+  return line;
+}
+
+function renderReferenceList(refs, resolvedResults) {
   const list = document.createElement("ul");
   if (!refs || refs.length === 0) {
     const item = document.createElement("li");
@@ -105,6 +151,24 @@ function renderRefs(refs, resolvedResults) {
         resolved.internal_link || `#/studies/${resolved.study_id}?result=${resolved.result_id}`;
       link.textContent = ref;
       item.appendChild(link);
+
+      const doi = resolved.doi;
+      if (doi) {
+        const doiLink = document.createElement("a");
+        doiLink.href = doi.startsWith("http") ? doi : `https://doi.org/${doi}`;
+        doiLink.textContent = "DOI";
+        item.appendChild(document.createTextNode(" "));
+        item.appendChild(doiLink);
+      }
+
+      const sourceUrl = resolved.source_url;
+      if (sourceUrl) {
+        const sourceLink = document.createElement("a");
+        sourceLink.href = sourceUrl;
+        sourceLink.textContent = "Source";
+        item.appendChild(document.createTextNode(" "));
+        item.appendChild(sourceLink);
+      }
     } else {
       item.textContent = ref;
     }
@@ -114,22 +178,134 @@ function renderRefs(refs, resolvedResults) {
   return list;
 }
 
-function renderChannel(label, channel, resolvedResults) {
+function renderSummaryChannel(label, channel) {
+  const wrapper = document.createElement("div");
+  wrapper.dataset.evidenceChannel = label.toLowerCase();
+
+  const heading = document.createElement("strong");
+  heading.textContent = label;
+  wrapper.appendChild(heading);
+
+  const labels = formatChannelLabels(channel);
+  const badgeLine = document.createElement("div");
+  const effectBadge = document.createElement("span");
+  effectBadge.textContent = labels.effectLabel;
+  const reliabilityBadge = document.createElement("span");
+  reliabilityBadge.textContent = labels.reliabilityLabel;
+  badgeLine.appendChild(effectBadge);
+  badgeLine.appendChild(document.createTextNode(" · "));
+  badgeLine.appendChild(reliabilityBadge);
+  wrapper.appendChild(badgeLine);
+
+  return wrapper;
+}
+
+function renderExpandedChannel(label, channel, resolvedResults) {
   const wrapper = document.createElement("div");
   const heading = document.createElement("strong");
   heading.textContent = label;
   wrapper.appendChild(heading);
 
-  const effectLabel = channel && channel.effect_size_label ? channel.effect_size_label : "";
-  const reliabilityLabel = channel && channel.reliability_label ? channel.reliability_label : "";
+  const labels = formatChannelLabels(channel);
   const summary = document.createElement("p");
-  summary.textContent = [effectLabel, reliabilityLabel].filter(Boolean).join(" · ");
+  summary.textContent = `${labels.effectLabel} · ${labels.reliabilityLabel}`;
   wrapper.appendChild(summary);
 
+  const countsLine = renderCounts(channel && channel.counts ? channel.counts : null);
+  if (countsLine) {
+    wrapper.appendChild(countsLine);
+  }
+
   const refs = channel && channel.refs ? channel.refs : [];
-  wrapper.appendChild(renderRefs(refs, resolvedResults));
+  wrapper.appendChild(renderReferenceList(refs, resolvedResults));
 
   return wrapper;
+}
+
+function renderEvidenceRow(row, tableId, rowIndex, resolvedResults) {
+  const rowBlock = document.createElement("div");
+  rowBlock.dataset.evidenceRow = "true";
+
+  const rowDomId = buildRowDomId(tableId, row.row_id || row.row_label, rowIndex);
+  const detailsId = `${rowDomId}-details`;
+
+  const summary = document.createElement("div");
+  summary.dataset.evidenceRowSummary = "true";
+
+  const header = document.createElement("div");
+  const rowHeading = document.createElement("h4");
+  rowHeading.textContent = row.row_label || row.row_id || "Row";
+  header.appendChild(rowHeading);
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.dataset.evidenceToggle = "true";
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-controls", detailsId);
+  toggle.textContent = "Details";
+  header.appendChild(toggle);
+  summary.appendChild(header);
+
+  if (row.summary_statement) {
+    const summaryText = document.createElement("p");
+    summaryText.textContent = row.summary_statement;
+    summary.appendChild(summaryText);
+  }
+
+  const badgeRow = document.createElement("div");
+  badgeRow.appendChild(renderSummaryChannel("Performance", row.performance));
+  badgeRow.appendChild(renderSummaryChannel("Learning", row.learning));
+  summary.appendChild(badgeRow);
+
+  const expanded = document.createElement("div");
+  expanded.dataset.evidenceExpanded = "true";
+  expanded.id = detailsId;
+  expanded.hidden = true;
+
+  const canonicalLine = document.createElement("p");
+  canonicalLine.textContent = "Canonical effect size: Not available";
+  expanded.appendChild(canonicalLine);
+
+  const provenance = document.createElement("p");
+  provenance.textContent = "Provenance: not specified";
+  expanded.appendChild(provenance);
+
+  expanded.appendChild(
+    renderExpandedChannel("Performance", row.performance || {}, resolvedResults)
+  );
+  expanded.appendChild(
+    renderExpandedChannel("Learning", row.learning || {}, resolvedResults)
+  );
+
+  toggle.addEventListener("click", () => {
+    const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+    const nextState = !isExpanded;
+    toggle.setAttribute("aria-expanded", nextState ? "true" : "false");
+    expanded.hidden = !nextState;
+  });
+
+  rowBlock.appendChild(summary);
+  rowBlock.appendChild(expanded);
+  return rowBlock;
+}
+
+function renderEvidenceTable(table, resolvedResults, index) {
+  const tableSection = document.createElement("section");
+  tableSection.dataset.evidenceTable = "true";
+
+  const heading = document.createElement("h3");
+  heading.textContent = table.table_label || table.table_id || "Evidence table";
+  tableSection.appendChild(heading);
+
+  const rows = table.rows || [];
+  rows.forEach((row, rowIndex) => {
+    const tableId = table.table_id || `table-${index}`;
+    tableSection.appendChild(
+      renderEvidenceRow(row, tableId, rowIndex, resolvedResults)
+    );
+  });
+
+  return tableSection;
 }
 
 function renderTechnique(technique) {
@@ -146,31 +322,8 @@ function renderTechnique(technique) {
     return;
   }
 
-  tables.forEach((table) => {
-    const tableSection = document.createElement("section");
-    const heading = document.createElement("h3");
-    heading.textContent = table.table_label || table.table_id || "Evidence table";
-    tableSection.appendChild(heading);
-
-    const rows = table.rows || [];
-    rows.forEach((row) => {
-      const rowBlock = document.createElement("div");
-      const rowHeading = document.createElement("h4");
-      rowHeading.textContent = row.row_label || row.row_id || "Row";
-      rowBlock.appendChild(rowHeading);
-
-      if (row.summary_statement) {
-        const summary = document.createElement("p");
-        summary.textContent = row.summary_statement;
-        rowBlock.appendChild(summary);
-      }
-
-      rowBlock.appendChild(renderChannel("Performance", row.performance, technique.resolved_results));
-      rowBlock.appendChild(renderChannel("Learning", row.learning, technique.resolved_results));
-      tableSection.appendChild(rowBlock);
-    });
-
-    techniqueTablesEl.appendChild(tableSection);
+  tables.forEach((table, index) => {
+    techniqueTablesEl.appendChild(renderEvidenceTable(table, technique.resolved_results, index));
   });
 }
 
