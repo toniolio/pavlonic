@@ -2,6 +2,17 @@ import { getRouteFromLocation } from "./study_id.js";
 import { renderStudyResultsHtml } from "./results_renderer.js";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
+// LOCAL DEV ONLY — DO NOT ENABLE IN HOSTED ENVIRONMENTS
+const DEV_ENTITLEMENT_TOGGLE = false;
+const DEV_ENTITLEMENT_STORAGE_KEY = "pavlonic_dev_entitlement_mode";
+
+function isLocalHostname(hostname) {
+  return hostname === "localhost" || hostname === "127.0.0.1";
+}
+
+const DEV_ENTITLEMENT_ENABLED =
+  DEV_ENTITLEMENT_TOGGLE && isLocalHostname(window.location.hostname);
+let devEntitlementMode = "public";
 
 const statusEl = document.getElementById("status");
 const studySection = document.getElementById("study");
@@ -31,6 +42,79 @@ function clearChildren(element) {
   while (element.firstChild) {
     element.removeChild(element.firstChild);
   }
+}
+
+function readDevEntitlementMode() {
+  try {
+    const stored = window.localStorage.getItem(DEV_ENTITLEMENT_STORAGE_KEY);
+    return stored === "paid" ? "paid" : "public";
+  } catch (error) {
+    return "public";
+  }
+}
+
+function persistDevEntitlementMode(mode) {
+  try {
+    window.localStorage.setItem(DEV_ENTITLEMENT_STORAGE_KEY, mode);
+  } catch (error) {
+    // Ignore localStorage failures in local dev.
+  }
+}
+
+function initDevEntitlementToggle() {
+  if (!DEV_ENTITLEMENT_ENABLED) {
+    return;
+  }
+
+  const devNav = document.querySelector("[data-dev-sitemap]");
+  if (!devNav) {
+    return;
+  }
+
+  devEntitlementMode = readDevEntitlementMode();
+
+  const container = document.createElement("span");
+  container.setAttribute("data-dev-entitlement-toggle", "true");
+  container.innerHTML = `
+    <span>|</span>
+    <span>Mode:</span>
+    <button type="button" data-dev-entitlement="public">Public</button>
+    <span>|</span>
+    <button type="button" data-dev-entitlement="paid">Paid</button>
+    <span data-dev-entitlement-indicator></span>
+  `;
+
+  const publicButton = container.querySelector("[data-dev-entitlement='public']");
+  const paidButton = container.querySelector("[data-dev-entitlement='paid']");
+  const indicator = container.querySelector("[data-dev-entitlement-indicator]");
+
+  if (!publicButton || !paidButton || !indicator) {
+    return;
+  }
+
+  function updateIndicator() {
+    indicator.textContent =
+      devEntitlementMode === "paid" ? "DEV MODE: PAID" : "DEV MODE: PUBLIC";
+    publicButton.disabled = devEntitlementMode === "public";
+    paidButton.disabled = devEntitlementMode === "paid";
+  }
+
+  function applyMode(nextMode) {
+    if (nextMode !== "public" && nextMode !== "paid") {
+      return;
+    }
+    devEntitlementMode = nextMode;
+    persistDevEntitlementMode(nextMode);
+    updateIndicator();
+    lastRouteKey = null;
+    handleRouteChange();
+  }
+
+  publicButton.addEventListener("click", () => applyMode("public"));
+  paidButton.addEventListener("click", () => applyMode("paid"));
+
+  updateIndicator();
+  devNav.appendChild(container);
 }
 
 function updateBreadcrumb(route, payload) {
@@ -362,6 +446,22 @@ function highlightResultRow(row) {
   }, 1500);
 }
 
+function buildApiRequestOptions() {
+  if (!DEV_ENTITLEMENT_ENABLED || devEntitlementMode !== "paid") {
+    return {};
+  }
+  return {
+    headers: {
+      "X-Pavlonic-Entitlement": "paid",
+    },
+  };
+}
+
+async function fetchApi(url) {
+  const options = buildApiRequestOptions();
+  return fetch(url, options);
+}
+
 async function loadStudy(studyId, resultId) {
   const url = `${API_BASE_URL}/v1/studies/${studyId}`;
   statusEl.textContent = `Fetching study ${studyId}…`;
@@ -369,7 +469,7 @@ async function loadStudy(studyId, resultId) {
   errorMessageEl.textContent = "";
 
   try {
-    const response = await fetch(url);
+    const response = await fetchApi(url);
     if (response.status === 404) {
       throw new Error(`Study not found: ${studyId}`);
     }
@@ -397,7 +497,7 @@ async function loadTechnique(slug) {
   errorMessageEl.textContent = "";
 
   try {
-    const response = await fetch(url);
+    const response = await fetchApi(url);
     if (response.status === 404) {
       throw new Error(`Technique not found: ${slug}`);
     }
@@ -444,4 +544,5 @@ function handleRouteChange() {
 window.addEventListener("hashchange", handleRouteChange);
 window.addEventListener("popstate", handleRouteChange);
 
+initDevEntitlementToggle();
 handleRouteChange();
