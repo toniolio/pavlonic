@@ -17,6 +17,9 @@ def test_web_index_exists_and_has_marker() -> None:
     assert "Pavlonic Viewer" in content
     assert "data-evidence-table-container" in content
     assert "data-dev-sitemap" in content
+    assert "<title>" in content
+    assert 'name="description"' in content
+    assert 'property="og:title"' in content
 
 
 def _run_node_module(code: str) -> dict:
