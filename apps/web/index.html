@@ -6,10 +6,23 @@
     <title>Pavlonic Study Viewer</title>
   </head>
   <body>
-    <main>
-      <h1>Pavlonic Study Viewer</h1>
+    <header>
+      <div>
+        <a id="home-link" href="#/studies/0001">Pavlonic</a>
+      </div>
+    </header>
 
-      <section id="status" aria-live="polite">Loading study…</section>
+    <nav id="breadcrumb" aria-label="Breadcrumb">
+      <ol>
+        <li><a id="breadcrumb-home" href="#/studies/0001">Home</a></li>
+        <li id="breadcrumb-current">Study 0001</li>
+      </ol>
+    </nav>
+
+    <main>
+      <h1>Pavlonic Viewer</h1>
+
+      <section id="status" aria-live="polite">Loading…</section>
 
       <section id="study" hidden>
         <h2 id="study-title"></h2>
@@ -34,11 +47,21 @@
         </table>
       </section>
 
+      <section id="technique" hidden>
+        <h2 id="technique-title"></h2>
+        <p id="technique-summary"></p>
+        <div id="technique-tables"></div>
+      </section>
+
       <section id="error" hidden>
-        <h2>Unable to load study</h2>
+        <h2>Unable to load page</h2>
         <p id="error-message"></p>
       </section>
     </main>
+
+    <footer>
+      <small>Read-only demo viewer</small>
+    </footer>
 
     <script type="module" src="app.js"></script>
   </body>
