@@ -27,9 +27,11 @@ If a change needs spec reference, write “See private specs” without quoting.
 
 ## Run API locally
 
-Use the single dev command to run both the API and web viewer:
+Use the single dev command to run both the API and web viewer (DB-backed API requires seed):
 
 - `make setup`
+- `make db-reset`
+- `make db-seed`
 - `make dev`
 
 Then open:
