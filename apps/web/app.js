@@ -31,6 +31,46 @@ const techniqueTitleEl = document.getElementById("technique-title");
 const techniqueSummaryEl = document.getElementById("technique-summary");
 const techniqueTablesEl = document.getElementById("technique-tables");
 
+const DEFAULT_PAGE_TITLE = "Pavlonic Viewer";
+const DEFAULT_PAGE_DESCRIPTION =
+  "Pavlonic read-only evidence viewer for studies and techniques.";
+const PAGE_TITLE_SUFFIX = " \u2014 Pavlonic";
+
+function truncateText(value, maxLength = 160) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, maxLength - 3).trim()}...`;
+}
+
+function setMetaContent(selector, content) {
+  const element = document.querySelector(selector);
+  if (!element) {
+    return;
+  }
+  element.setAttribute("content", content);
+}
+
+function getCurrentPageUrl() {
+  return `${window.location.origin}${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function applyPageMetadata({ title, description, url } = {}) {
+  const resolvedTitle = title || DEFAULT_PAGE_TITLE;
+  const resolvedDescription = truncateText(description) || DEFAULT_PAGE_DESCRIPTION;
+  const resolvedUrl = url || getCurrentPageUrl();
+
+  document.title = resolvedTitle;
+  setMetaContent("meta[name='description']", resolvedDescription);
+  setMetaContent("meta[property='og:title']", resolvedTitle);
+  setMetaContent("meta[property='og:description']", resolvedDescription);
+  setMetaContent("meta[property='og:url']", resolvedUrl);
+}
+
 function setPageVisibility({ status = false, study = false, technique = false, error = false } = {}) {
   statusEl.hidden = !status;
   studySection.hidden = !study;
@@ -481,6 +521,10 @@ async function loadStudy(studyId, resultId) {
     renderStudy(study, resultId);
     lastStudyPayload = study;
     updateBreadcrumb({ page: "study", id: studyId }, study);
+    applyPageMetadata({
+      title: `Study: ${studyId}${PAGE_TITLE_SUFFIX}`,
+      description: `Study ${studyId} in the Pavlonic read-only evidence viewer.`,
+    });
 
     setPageVisibility({ study: true });
     scrollToResult(resultId);
@@ -508,6 +552,14 @@ async function loadTechnique(slug) {
     const technique = await response.json();
     renderTechnique(technique);
     updateBreadcrumb({ page: "technique", id: slug }, technique);
+    const techniqueName = technique && technique.title ? technique.title : slug;
+    applyPageMetadata({
+      title: `Technique: ${techniqueName}${PAGE_TITLE_SUFFIX}`,
+      description:
+        technique && technique.summary
+          ? technique.summary
+          : `Technique ${techniqueName} in the Pavlonic read-only evidence viewer.`,
+    });
 
     setPageVisibility({ technique: true });
   } catch (error) {
@@ -545,4 +597,5 @@ window.addEventListener("hashchange", handleRouteChange);
 window.addEventListener("popstate", handleRouteChange);
 
 initDevEntitlementToggle();
+applyPageMetadata();
 handleRouteChange();
