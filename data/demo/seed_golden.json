@@ -59,6 +59,29 @@
       },
       "study_id": "0001",
       "visibility": "expanded"
+    },
+    {
+      "effect": {
+        "direction": "positive",
+        "provenance": "reported",
+        "type": "cohen_d",
+        "value": 0.48
+      },
+      "outcome_id": "O2",
+      "reliability": {
+        "provenance": "entered",
+        "rating": "medium"
+      },
+      "result_description": "Synthetic effect on delayed transfer",
+      "result_id": "R3",
+      "result_label": "Spaced vs. massed (transfer)",
+      "significance": {
+        "provenance": "reported",
+        "type": "p_value",
+        "value": 0.03
+      },
+      "study_id": "0001",
+      "visibility": "expanded"
     }
   ],
   "studies": [
@@ -82,6 +105,10 @@
       "mapping_json": [
         {
           "result_id": "R1",
+          "study_id": "0001"
+        },
+        {
+          "result_id": "R2",
           "study_id": "0001"
         }
       ],

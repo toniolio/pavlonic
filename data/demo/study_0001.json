@@ -46,11 +46,11 @@
       },
       "notes": "Synthetic values for scaffolding only."
     },
-    {
-      "result_id": "R2",
-      "result_label": "Spaced vs. massed (learning)",
-      "result_description": "Synthetic effect on retention",
-      "outcome_id": "O2",
+  {
+    "result_id": "R2",
+    "result_label": "Spaced vs. massed (learning)",
+    "result_description": "Synthetic effect on retention",
+    "outcome_id": "O2",
       "visibility": "expanded",
       "effect": {
         "type": "cohen_d",
@@ -63,11 +63,34 @@
         "value": 0.01,
         "provenance": "reported"
       },
-      "reliability": {
-        "rating": "high",
-        "provenance": "entered"
-      },
-      "notes": "Synthetic values for scaffolding only."
-    }
-  ]
+    "reliability": {
+      "rating": "high",
+      "provenance": "entered"
+    },
+    "notes": "Synthetic values for scaffolding only."
+  },
+  {
+    "result_id": "R3",
+    "result_label": "Spaced vs. massed (transfer)",
+    "result_description": "Synthetic effect on delayed transfer",
+    "outcome_id": "O2",
+    "visibility": "expanded",
+    "effect": {
+      "type": "cohen_d",
+      "value": 0.48,
+      "direction": "positive",
+      "provenance": "reported"
+    },
+    "significance": {
+      "type": "p_value",
+      "value": 0.03,
+      "provenance": "reported"
+    },
+    "reliability": {
+      "rating": "medium",
+      "provenance": "entered"
+    },
+    "notes": "Synthetic values for scaffolding only."
+  }
+]
 }

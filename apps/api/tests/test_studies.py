@@ -39,4 +39,4 @@ def test_get_study_filters_results_by_entitlement(seeded_db) -> None:
     paid_results = paid_response.json()["results"]
     assert len(public_results) < len(paid_results)
     assert {result["result_id"] for result in public_results} == {"R1"}
-    assert {result["result_id"] for result in paid_results} == {"R1", "R2"}
+    assert {result["result_id"] for result in paid_results} == {"R1", "R2", "R3"}

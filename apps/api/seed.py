@@ -34,7 +34,7 @@ TECHNIQUE_ID = "spaced-practice"
 TECHNIQUE_TITLE = "Spaced practice"
 TECHNIQUE_SUMMARY = "Practice distributed over time to improve retention."
 TECHNIQUE_VISIBILITY = "overall"
-MAPPING_RESULT_IDS = ("R1",)
+MAPPING_RESULT_IDS = ("R1", "R2")
 
 
 def _load_study_source() -> dict[str, Any]:
