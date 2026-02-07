@@ -64,3 +64,8 @@ Preferred:
 Fallback (if needed):
 - `python -m pytest`
 - `ruff check .`
+
+## Documentation policy
+- Some docs are historical snapshots (e.g., `docs/phase0-foundation.md`) and must NOT be updated to reflect current behavior.
+- Root `README.md` and `Makefile` are the source of truth for current setup commands.
+- When updating docs, prefer living docs (`README.md`, `CONTRIBUTING.md`, `docs/AGENT.md`) over snapshot docs.
