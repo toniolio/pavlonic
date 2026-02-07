@@ -41,3 +41,9 @@ curl http://127.0.0.1:8000/v1/studies/0001
 # Paid override
 curl -H "X-Pavlonic-Entitlement: paid" http://127.0.0.1:8000/v1/studies/0001
 ```
+
+## SEO note (Phase 2)
+
+The current public viewer uses hash routing (`#/techniques/...`, `#/studies/...`) and a static client-rendered page, so SEO is intentionally limited in this phase.
+
+Canonical tags, sitemap generation, and structured data are deferred until SSR/path routing is in place.
