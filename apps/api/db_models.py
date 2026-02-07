@@ -81,3 +81,4 @@ class Technique(Base):
     summary = Column(Text, nullable=False)
     visibility = Column(String, nullable=False)
     mapping_json = Column(JSON)
+    tables_json = Column(JSON)
