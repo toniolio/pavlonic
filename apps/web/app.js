@@ -339,7 +339,27 @@ function scrollToResult(resultId) {
   const target = targeted || document.getElementById(`result-${resultId}`);
   if (target) {
     target.scrollIntoView({ block: "start" });
+    highlightResultRow(target);
   }
+}
+
+let highlightTimer = null;
+
+function highlightResultRow(row) {
+  if (!row) {
+    return;
+  }
+  if (highlightTimer) {
+    window.clearTimeout(highlightTimer);
+    highlightTimer = null;
+  }
+  row.style.outline = "2px solid #f2b705";
+  row.style.backgroundColor = "#fff8d1";
+  highlightTimer = window.setTimeout(() => {
+    row.style.outline = "";
+    row.style.backgroundColor = "";
+    highlightTimer = null;
+  }, 1500);
 }
 
 async function loadStudy(studyId, resultId) {
