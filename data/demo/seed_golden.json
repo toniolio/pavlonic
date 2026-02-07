@@ -110,9 +110,59 @@
         {
           "result_id": "R2",
           "study_id": "0001"
+        },
+        {
+          "result_id": "R3",
+          "study_id": "0001"
         }
       ],
       "summary": "Practice distributed over time to improve retention.",
+      "tables_json": [
+        {
+          "rows": [
+            {
+              "learning": {
+                "effect_size_label": "Medium positive",
+                "refs": [
+                  "0001:R2"
+                ],
+                "reliability_label": "High"
+              },
+              "performance": {
+                "effect_size_label": "Small positive",
+                "refs": [
+                  "0001:R1"
+                ],
+                "reliability_label": "Medium"
+              },
+              "row_id": "overall",
+              "row_label": "Overall",
+              "summary_statement": "Overall evidence favors spaced practice in this synthetic demo."
+            },
+            {
+              "learning": {
+                "effect_size_label": "Small positive",
+                "refs": [
+                  "0001:R3"
+                ],
+                "reliability_label": "Medium"
+              },
+              "performance": {
+                "effect_size_label": "Small positive",
+                "refs": [
+                  "0001:R1"
+                ],
+                "reliability_label": "Medium"
+              },
+              "row_id": "transfer",
+              "row_label": "Transfer outcomes",
+              "summary_statement": "Transfer outcomes show benefits in synthetic data."
+            }
+          ],
+          "table_id": "table-1",
+          "table_label": "Spaced practice evidence"
+        }
+      ],
       "technique_id": "spaced-practice",
       "title": "Spaced practice",
       "visibility": "overall"

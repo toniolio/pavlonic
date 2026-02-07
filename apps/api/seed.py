@@ -3,7 +3,7 @@
 How it works:
     - Loads the synthetic study JSON from data/demo/study_0001.json.
     - Clears v0 tables in dependency order to avoid duplicates.
-    - Inserts one study, its outcomes/results, and one technique with curated mapping_json.
+    - Inserts one study, its outcomes/results, and one technique with curated mapping_json and tables_json.
     - Exports a stable JSON snapshot for the golden fixture.
 
 How to run:
@@ -34,7 +34,45 @@ TECHNIQUE_ID = "spaced-practice"
 TECHNIQUE_TITLE = "Spaced practice"
 TECHNIQUE_SUMMARY = "Practice distributed over time to improve retention."
 TECHNIQUE_VISIBILITY = "overall"
-MAPPING_RESULT_IDS = ("R1", "R2")
+MAPPING_RESULT_IDS = ("R1", "R2", "R3")
+TABLES_JSON = [
+    {
+        "table_id": "table-1",
+        "table_label": "Spaced practice evidence",
+        "rows": [
+            {
+                "row_id": "overall",
+                "row_label": "Overall",
+                "summary_statement": "Overall evidence favors spaced practice in this synthetic demo.",
+                "performance": {
+                    "effect_size_label": "Small positive",
+                    "reliability_label": "Medium",
+                    "refs": ["0001:R1"],
+                },
+                "learning": {
+                    "effect_size_label": "Medium positive",
+                    "reliability_label": "High",
+                    "refs": ["0001:R2"],
+                },
+            },
+            {
+                "row_id": "transfer",
+                "row_label": "Transfer outcomes",
+                "summary_statement": "Transfer outcomes show benefits in synthetic data.",
+                "performance": {
+                    "effect_size_label": "Small positive",
+                    "reliability_label": "Medium",
+                    "refs": ["0001:R1"],
+                },
+                "learning": {
+                    "effect_size_label": "Small positive",
+                    "reliability_label": "Medium",
+                    "refs": ["0001:R3"],
+                },
+            },
+        ],
+    }
+]
 
 
 def _load_study_source() -> dict[str, Any]:
@@ -72,6 +110,57 @@ def _sorted_mapping(mapping: list[dict[str, str]]) -> list[dict[str, str]]:
         for item in mapping
     ]
     return sorted(normalized, key=lambda item: (item["study_id"], item["result_id"]))
+
+
+def _sorted_refs(refs: list[str]) -> list[str]:
+    """Return a deterministically ordered list of refs."""
+    normalized = [str(ref).strip() for ref in refs if str(ref).strip()]
+    return sorted(dict.fromkeys(normalized))
+
+
+def _sorted_channel(channel: dict[str, Any]) -> dict[str, Any]:
+    """Return a deterministically ordered channel payload."""
+    return {
+        "effect_size_label": str(channel.get("effect_size_label", "")).strip(),
+        "reliability_label": str(channel.get("reliability_label", "")).strip(),
+        "refs": _sorted_refs(list(channel.get("refs", []))),
+    }
+
+
+def _sorted_tables_json(tables: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Return a deterministically ordered tables_json payload."""
+    if not tables:
+        return []
+
+    normalized_tables: list[dict[str, Any]] = []
+    for table in tables:
+        if not isinstance(table, dict):
+            continue
+        rows = table.get("rows", [])
+        normalized_rows = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            normalized_rows.append(
+                {
+                    "row_id": row.get("row_id"),
+                    "row_label": row.get("row_label"),
+                    "summary_statement": row.get("summary_statement"),
+                    "performance": _sorted_channel(row.get("performance", {})),
+                    "learning": _sorted_channel(row.get("learning", {})),
+                }
+            )
+        normalized_rows.sort(key=lambda item: str(item.get("row_id", "")))
+        normalized_tables.append(
+            {
+                "table_id": table.get("table_id"),
+                "table_label": table.get("table_label"),
+                "rows": normalized_rows,
+            }
+        )
+
+    normalized_tables.sort(key=lambda item: str(item.get("table_id", "")))
+    return normalized_tables
 
 
 def seed_db() -> None:
@@ -136,6 +225,7 @@ def seed_db() -> None:
         summary=TECHNIQUE_SUMMARY,
         visibility=TECHNIQUE_VISIBILITY,
         mapping_json=mapping,
+        tables_json=TABLES_JSON,
     )
 
     with Session(engine) as session:
@@ -206,12 +296,14 @@ def _result_to_dict(result: Result) -> dict[str, Any]:
 def _technique_to_dict(technique: Technique) -> dict[str, Any]:
     """Convert a Technique ORM instance into a stable dict."""
     mapping = technique.mapping_json or []
+    tables = technique.tables_json or []
     return {
         "technique_id": technique.technique_id,
         "title": technique.title,
         "summary": technique.summary,
         "visibility": technique.visibility,
         "mapping_json": _sorted_mapping(mapping),
+        "tables_json": _sorted_tables_json(tables),
     }
 
 
