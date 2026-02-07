@@ -15,6 +15,7 @@ def test_web_index_exists_and_has_marker() -> None:
 
     content = html_path.read_text(encoding="utf-8")
     assert "Pavlonic Viewer" in content
+    assert "data-evidence-table-container" in content
 
 
 def _run_node_module(code: str) -> dict:
@@ -67,5 +68,9 @@ def test_route_parsing_and_error_message_template() -> None:
     )
     assert "Study not found:" in app_js
     assert "Technique not found:" in app_js
+    assert "data-evidence-toggle" in app_js
+    assert "data-evidence-row" in app_js
+    assert "aria-expanded" in app_js
+    assert "aria-controls" in app_js
     assert "hashchange" in app_js
     assert "popstate" in app_js
