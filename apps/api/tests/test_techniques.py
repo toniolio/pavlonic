@@ -10,15 +10,36 @@ from apps.api.main import app
 client = TestClient(app)
 
 
-def _result_ids(payload: dict) -> set[str]:
-    return {item["result"]["result_id"] for item in payload["results"]}
+def _collect_rows(tables: list[dict]) -> list[dict]:
+    rows: list[dict] = []
+    for table in tables:
+        rows.extend(table.get("rows", []))
+    return rows
 
 
-def _mapping_ids(payload: dict) -> set[tuple[str, str]]:
-    return {
-        (item["study_id"], item["result_id"])
-        for item in payload["mapping_json"]
-    }
+def _collect_refs(tables: list[dict]) -> set[str]:
+    refs: set[str] = set()
+    for table in tables:
+        for row in table.get("rows", []):
+            for channel_name in ("performance", "learning"):
+                channel = row.get(channel_name, {})
+                for ref in channel.get("refs", []):
+                    if ref:
+                        refs.add(ref)
+    return refs
+
+
+def _find_overall_row(tables: list[dict]) -> dict | None:
+    for row in _collect_rows(tables):
+        row_id = str(row.get("row_id", "")).strip().lower()
+        row_label = str(row.get("row_label", "")).strip().lower()
+        if row_id == "overall" or row_label == "overall":
+            return row
+    return None
+
+
+def _resolved_keys(payload: dict) -> set[str]:
+    return set(payload["resolved_results"].keys())
 
 
 def test_get_technique_returns_200(seeded_db) -> None:
@@ -31,7 +52,21 @@ def test_get_technique_returns_200(seeded_db) -> None:
     assert payload["title"]
     assert payload["summary"]
     assert payload["mapping_json"]
-    assert payload["results"]
+    assert payload["tables"]
+
+    overall_row = _find_overall_row(payload["tables"])
+    assert overall_row is not None
+    assert "performance" in overall_row
+    assert "learning" in overall_row
+    assert "refs" in overall_row["performance"]
+    assert "refs" in overall_row["learning"]
+
+    refs = _collect_refs(payload["tables"])
+    assert refs
+    assert _resolved_keys(payload) == refs
+    for entry in payload["resolved_results"].values():
+        assert entry["study_id"]
+        assert entry["result_id"]
 
 
 def test_get_technique_returns_404_for_unknown(seeded_db) -> None:
@@ -40,7 +75,7 @@ def test_get_technique_returns_404_for_unknown(seeded_db) -> None:
     assert response.status_code == 404
 
 
-def test_get_technique_filters_results_by_entitlement(seeded_db) -> None:
+def test_get_technique_filters_rows_and_refs_by_entitlement(seeded_db) -> None:
     public_response = client.get("/v1/techniques/spaced-practice")
     paid_response = client.get(
         "/v1/techniques/spaced-practice",
@@ -53,9 +88,16 @@ def test_get_technique_filters_results_by_entitlement(seeded_db) -> None:
     public_payload = public_response.json()
     paid_payload = paid_response.json()
 
-    assert len(public_payload["results"]) < len(paid_payload["results"])
-    assert _result_ids(public_payload) == {"R1"}
-    assert _result_ids(paid_payload) == {"R1", "R2"}
+    public_rows = _collect_rows(public_payload["tables"])
+    paid_rows = _collect_rows(paid_payload["tables"])
 
-    assert _mapping_ids(public_payload) == {("0001", "R1")}
-    assert _mapping_ids(paid_payload) == {("0001", "R1"), ("0001", "R2")}
+    assert len(public_rows) < len(paid_rows)
+    assert len(public_rows) == 1
+    assert _find_overall_row(public_payload["tables"]) is not None
+
+    public_refs = _collect_refs(public_payload["tables"])
+    paid_refs = _collect_refs(paid_payload["tables"])
+
+    assert public_refs < paid_refs
+    assert _resolved_keys(public_payload) == public_refs
+    assert _resolved_keys(paid_payload) == paid_refs
