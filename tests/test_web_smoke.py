@@ -16,6 +16,7 @@ def test_web_index_exists_and_has_marker() -> None:
     content = html_path.read_text(encoding="utf-8")
     assert "Pavlonic Viewer" in content
     assert "data-evidence-table-container" in content
+    assert "data-dev-sitemap" in content
 
 
 def _run_node_module(code: str) -> dict:
