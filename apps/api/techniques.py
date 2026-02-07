@@ -1,9 +1,9 @@
 """DB-backed technique fetch helpers for the API.
 
 How it works:
-    - Load the technique and curated mapping_json from the SQLite DB.
+    - Load the technique, curated mapping_json, and tables_json from the SQLite DB.
     - Resolve mapping_json references into result payloads.
-    - Filter mapped results server-side based on viewer entitlements.
+    - Filter mapped results and topic table rows server-side based on viewer entitlements.
 
 How to run:
     - python -c "from apps.api.techniques import load_technique_payload; print(load_technique_payload('spaced-practice', 'public'))"
@@ -69,6 +69,131 @@ def _normalize_mapping(mapping: Iterable[dict[str, Any]] | None) -> list[dict[st
         normalized.append({"study_id": study_id, "result_id": result_id})
 
     return sorted(normalized, key=lambda entry: (entry["study_id"], entry["result_id"]))
+
+
+def _normalize_channel(channel: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize a table channel payload."""
+    if not isinstance(channel, dict):
+        channel = {}
+    refs = [str(ref).strip() for ref in channel.get("refs", []) if str(ref).strip()]
+    normalized: dict[str, Any] = {
+        "effect_size_label": str(channel.get("effect_size_label", "")).strip(),
+        "reliability_label": str(channel.get("reliability_label", "")).strip(),
+        "refs": refs,
+    }
+    if "counts" in channel:
+        normalized["counts"] = channel["counts"]
+    return normalized
+
+
+def _normalize_tables(tables: Iterable[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Normalize tables_json into a stable shape."""
+    if not tables:
+        return []
+
+    normalized_tables: list[dict[str, Any]] = []
+    for table in tables:
+        if not isinstance(table, dict):
+            continue
+        rows = table.get("rows", [])
+        normalized_rows = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            normalized_rows.append(
+                {
+                    "row_id": str(row.get("row_id", "")).strip(),
+                    "row_label": str(row.get("row_label", "")).strip(),
+                    "summary_statement": str(row.get("summary_statement", "")).strip(),
+                    "performance": _normalize_channel(row.get("performance")),
+                    "learning": _normalize_channel(row.get("learning")),
+                }
+            )
+        normalized_tables.append(
+            {
+                "table_id": str(table.get("table_id", "")).strip(),
+                "table_label": str(table.get("table_label", "")).strip(),
+                "rows": normalized_rows,
+            }
+        )
+    return normalized_tables
+
+
+def _is_overall_row(row: dict[str, Any]) -> bool:
+    """Return True if the row is the Overall row."""
+    row_id = str(row.get("row_id", "")).strip().lower()
+    row_label = str(row.get("row_label", "")).strip().lower()
+    return row_id == "overall" or row_label == "overall"
+
+
+def _filter_tables_for_entitlement(
+    tables: list[dict[str, Any]],
+    viewer_entitlement: str,
+) -> list[dict[str, Any]]:
+    """Return tables filtered by viewer entitlement."""
+    if can_view("study.results.expanded", viewer_entitlement):
+        return tables
+
+    filtered_tables: list[dict[str, Any]] = []
+    for table in tables:
+        rows = [row for row in table.get("rows", []) if _is_overall_row(row)]
+        if not rows:
+            continue
+        filtered_tables.append(
+            {
+                **table,
+                "rows": rows,
+            }
+        )
+    return filtered_tables
+
+
+def _collect_table_refs(tables: list[dict[str, Any]]) -> list[str]:
+    refs: list[str] = []
+    for table in tables:
+        for row in table.get("rows", []):
+            for channel_name in ("performance", "learning"):
+                channel = row.get(channel_name, {})
+                for ref in channel.get("refs", []):
+                    ref_text = str(ref).strip()
+                    if ref_text:
+                        refs.append(ref_text)
+    return refs
+
+
+def _parse_ref(ref: str) -> tuple[str, str] | None:
+    if ":" not in ref:
+        return None
+    study_id, result_id = ref.split(":", 1)
+    study_id = study_id.strip()
+    result_id = result_id.strip()
+    if not study_id or not result_id:
+        return None
+    return study_id, result_id
+
+
+def _filter_table_refs(
+    tables: list[dict[str, Any]],
+    allowed_pairs: set[tuple[str, str]],
+) -> list[dict[str, Any]]:
+    """Return tables with refs filtered to allowed study/result pairs."""
+    filtered_tables: list[dict[str, Any]] = []
+    for table in tables:
+        filtered_rows = []
+        for row in table.get("rows", []):
+            filtered_row = dict(row)
+            for channel_name in ("performance", "learning"):
+                channel = dict(filtered_row.get(channel_name, {}))
+                filtered_refs = []
+                for ref in channel.get("refs", []):
+                    parsed = _parse_ref(str(ref))
+                    if parsed and parsed in allowed_pairs:
+                        filtered_refs.append(str(ref))
+                channel["refs"] = filtered_refs
+                filtered_row[channel_name] = channel
+            filtered_rows.append(filtered_row)
+        filtered_tables.append({**table, "rows": filtered_rows})
+    return filtered_tables
 
 
 def _study_reference_payload(study: StudyModel) -> dict[str, Any]:
@@ -190,6 +315,35 @@ def load_technique_payload(
                 )
                 filtered_mapping.append(item)
 
+        tables = _normalize_tables(technique.tables_json)
+        tables = _filter_tables_for_entitlement(tables, viewer_entitlement)
+        table_refs = _collect_table_refs(tables)
+        table_pairs = {_parse_ref(ref) for ref in table_refs}
+        table_pairs.discard(None)
+
+        resolved_results: dict[str, dict[str, Any]] = {}
+        allowed_pairs: set[tuple[str, str]] = set()
+
+        if table_pairs and allowed_visibilities:
+            results = (
+                session.query(ResultModel)
+                .filter(
+                    tuple_(ResultModel.study_id, ResultModel.result_id).in_(table_pairs),
+                    ResultModel.visibility.in_(allowed_visibilities),
+                )
+                .all()
+            )
+            allowed_pairs = {(result.study_id, result.result_id) for result in results}
+            for result in results:
+                ref = f"{result.study_id}:{result.result_id}"
+                resolved_results[ref] = {
+                    "study_id": result.study_id,
+                    "result_id": result.result_id,
+                    "internal_link": f"#/studies/{result.study_id}?result={result.result_id}",
+                }
+
+        tables = _filter_table_refs(tables, allowed_pairs)
+
     return {
         "technique_id": technique.technique_id,
         "title": technique.title,
@@ -198,4 +352,6 @@ def load_technique_payload(
         "viewer_entitlement": viewer_entitlement,
         "mapping_json": filtered_mapping,
         "results": mapped_results,
+        "tables": tables,
+        "resolved_results": resolved_results,
     }
