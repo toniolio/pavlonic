@@ -71,6 +71,13 @@ def test_route_parsing_and_error_message_template() -> None:
     assert "Technique not found:" in app_js
     assert "data-evidence-toggle" in app_js
     assert "data-evidence-row" in app_js
+    assert "data-dev-entitlement-toggle" in app_js
+    assert "DEV_ENTITLEMENT_TOGGLE = false" in app_js
+    assert "LOCAL DEV ONLY" in app_js
+    assert "localhost" in app_js
+    assert "127.0.0.1" in app_js
+    assert "pavlonic_dev_entitlement_mode" in app_js
+    assert "X-Pavlonic-Entitlement" in app_js
     assert "aria-expanded" in app_js
     assert "aria-controls" in app_js
     assert "hashchange" in app_js
