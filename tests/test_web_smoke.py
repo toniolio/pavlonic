@@ -14,7 +14,7 @@ def test_web_index_exists_and_has_marker() -> None:
     assert html_path.exists()
 
     content = html_path.read_text(encoding="utf-8")
-    assert "Pavlonic Study Viewer" in content
+    assert "Pavlonic Viewer" in content
 
 
 def _run_node_module(code: str) -> dict:
@@ -34,27 +34,38 @@ def _run_node_module(code: str) -> dict:
     return json.loads(result.stdout)
 
 
-def test_study_id_parsing_and_404_message_template() -> None:
+def test_route_parsing_and_error_message_template() -> None:
     module_path = Path(__file__).resolve().parents[1] / "apps" / "web" / "study_id.js"
     code = f"""
-      import {{ getStudyIdFromLocation }} from '{module_path.as_uri()}';
-      const hashResult = getStudyIdFromLocation({{ hash: '#/study/0001', search: '' }});
-      const queryResult = getStudyIdFromLocation({{ hash: '', search: '?study=0002' }});
-      const defaultResult = getStudyIdFromLocation({{ hash: '', search: '' }});
-      console.log(JSON.stringify({{ hashResult, queryResult, defaultResult }}));
+      import {{ getRouteFromLocation, getStudyIdFromLocation }} from '{module_path.as_uri()}';
+      const techniqueRoute = getRouteFromLocation({{ hash: '#/techniques/spaced-practice', search: '' }});
+      const studyRoute = getRouteFromLocation({{ hash: '#/studies/0001?result=R1', search: '' }});
+      const legacyHashRoute = getRouteFromLocation({{ hash: '#/study/0002', search: '' }});
+      const legacyQueryRoute = getRouteFromLocation({{ hash: '', search: '?study=0003' }});
+      const defaultRoute = getRouteFromLocation({{ hash: '', search: '' }});
+      const studyId = getStudyIdFromLocation({{ hash: '#/studies/0005', search: '' }});
+      console.log(JSON.stringify({{ techniqueRoute, studyRoute, legacyHashRoute, legacyQueryRoute, defaultRoute, studyId }}));
     """
 
     output = _run_node_module(code)
     if output.get("skipped"):
         return
 
-    assert output["hashResult"] == "0001"
-    assert output["queryResult"] == "0002"
-    assert output["defaultResult"] == "0001"
+    assert output["techniqueRoute"] == {
+        "page": "technique",
+        "id": "spaced-practice",
+        "resultId": None,
+    }
+    assert output["studyRoute"] == {"page": "study", "id": "0001", "resultId": "R1"}
+    assert output["legacyHashRoute"] == {"page": "study", "id": "0002", "resultId": None}
+    assert output["legacyQueryRoute"] == {"page": "study", "id": "0003", "resultId": None}
+    assert output["defaultRoute"] == {"page": "study", "id": "0001", "resultId": None}
+    assert output["studyId"] == "0005"
 
     app_js = (Path(__file__).resolve().parents[1] / "apps" / "web" / "app.js").read_text(
         encoding="utf-8"
     )
     assert "Study not found:" in app_js
+    assert "Technique not found:" in app_js
     assert "hashchange" in app_js
     assert "popstate" in app_js
