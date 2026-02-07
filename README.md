@@ -22,7 +22,7 @@ The goal is to produce something genuinely useful for users. But I’m also usin
 - `docs/specs/` — public specs (empty for now)
 - `docs-private/` — private specs (never committed)
 
-## Local development (DB-backed studies)
+## Local development (DB-backed API)
 
 To use the DB-backed API locally, run migrations and seed the SQLite database before starting the dev server:
 
@@ -32,11 +32,12 @@ make db-seed
 make dev
 ```
 
-Then hit the studies endpoint (default public vs paid override). `X-Pavlonic-Entitlement` is a dev-only testing override and must not be enabled or used in production:
+Then hit the API endpoints (default public vs paid override). `X-Pavlonic-Entitlement` is a dev-only testing override and must not be enabled or used in production:
 
 ```bash
 # Default public (no header)
 curl http://127.0.0.1:8000/v1/studies/0001
+curl http://127.0.0.1:8000/v1/techniques/spaced-practice
 
 # Paid override
 curl -H "X-Pavlonic-Entitlement: paid" http://127.0.0.1:8000/v1/studies/0001

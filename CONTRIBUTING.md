@@ -39,7 +39,10 @@ Then open:
 - API: `http://127.0.0.1:8000/v1/studies/0001`
 - Web: `http://127.0.0.1:8001/`
 
-Web study selector examples:
+Web route examples:
 
-- Hash route: `http://127.0.0.1:8001/#/study/0001`
-- Query param: `http://127.0.0.1:8001/?study=0001`
+- Canonical study route: `http://127.0.0.1:8001/#/studies/0001`
+- Canonical deep link: `http://127.0.0.1:8001/#/studies/0001?result=R1`
+- Canonical technique route: `http://127.0.0.1:8001/#/techniques/spaced-practice`
+- Legacy study hash route (accepted): `http://127.0.0.1:8001/#/study/0001`
+- Legacy study query param (accepted): `http://127.0.0.1:8001/?study=0001`

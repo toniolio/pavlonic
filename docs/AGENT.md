@@ -41,7 +41,8 @@ If private docs are not present locally, **do not guess**. Ask for the missing a
    - Each commit message explains the “why” (not just “wip”).
 
 5. **Epic closeout (when applicable):**
-   - Update the public phase snapshot and add ADR(s) capturing key decisions.
+   - Update the public phase snapshot.
+   - Add an ADR only when a new long-lived decision is locked and not already documented.
    - Write a private debrief in `docs-private/ops-private/`.
 
 ## Architecture discipline (do not drift)
