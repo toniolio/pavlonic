@@ -13,7 +13,7 @@ Expected output:
 
 from __future__ import annotations
 
-from sqlalchemy import JSON, Boolean, Column, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import declarative_base
 
 
@@ -82,3 +82,18 @@ class Technique(Base):
     visibility = Column(String, nullable=False)
     mapping_json = Column(JSON)
     tables_json = Column(JSON)
+
+
+class User(Base):
+    """ORM model for users used by identity/auth flows."""
+
+    __tablename__ = "users"
+
+    user_id = Column(String, primary_key=True)
+    email = Column(String, nullable=False, unique=True, index=True)
+    password_hash = Column(Text, nullable=False)
+    plan_key = Column(String, nullable=False, server_default="free")
+    status = Column(String, nullable=False, server_default="active")
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+    last_login_at = Column(DateTime)
