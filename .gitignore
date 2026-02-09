@@ -24,3 +24,4 @@ exports/
 # Local DBs
 *.sqlite
 *.sqlite3
+*.db
