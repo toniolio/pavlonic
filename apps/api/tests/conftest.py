@@ -11,6 +11,15 @@ from alembic.config import Config
 from apps.api.seed import seed_db
 
 
+@pytest.fixture(autouse=True)
+def auth_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Provide deterministic auth defaults for API tests."""
+    monkeypatch.setenv("PAVLONIC_AUTH_JWT_SECRET", "test-jwt-secret")
+    monkeypatch.setenv("PAVLONIC_AUTH_JWT_ALGORITHM", "HS256")
+    monkeypatch.setenv("PAVLONIC_AUTH_ACCESS_TOKEN_TTL_SECONDS", "86400")
+    monkeypatch.setenv("PAVLONIC_AUTH_BCRYPT_ROUNDS", "4")
+
+
 def _db_url_for_path(db_path: Path) -> str:
     return f"sqlite:////{db_path.as_posix().lstrip('/')}"
 
