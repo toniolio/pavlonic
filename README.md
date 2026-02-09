@@ -32,6 +32,16 @@ make db-seed
 make dev
 ```
 
+Auth endpoints require a JWT secret:
+
+```bash
+export PAVLONIC_AUTH_JWT_SECRET="dev-only-change-me"
+# Optional:
+# export PAVLONIC_AUTH_JWT_ALGORITHM="HS256"
+# export PAVLONIC_AUTH_ACCESS_TOKEN_TTL_SECONDS="86400"
+# export PAVLONIC_AUTH_BCRYPT_ROUNDS="12"
+```
+
 Then hit the API endpoints (default public vs paid override). `X-Pavlonic-Entitlement` is a dev-only testing override and must not be enabled or used in production:
 
 ```bash
@@ -41,6 +51,22 @@ curl http://127.0.0.1:8000/v1/techniques/spaced-practice
 
 # Paid override
 curl -H "X-Pavlonic-Entitlement: paid" http://127.0.0.1:8000/v1/studies/0001
+```
+
+Auth smoke (register -> login -> me):
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@example.com","password":"dev-password"}'
+
+TOKEN=$(curl -sS -X POST http://127.0.0.1:8000/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@example.com","password":"dev-password"}' \
+  | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+
+curl -sS http://127.0.0.1:8000/v1/auth/me \
+  -H "Authorization: Bearer ${TOKEN}"
 ```
 
 ## SEO note (Phase 2)
