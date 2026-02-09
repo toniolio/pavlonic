@@ -8,7 +8,7 @@ RUFF := $(shell if [ -x "$(VENV_RUFF)" ]; then echo "$(VENV_RUFF)"; else command
 
 setup:
 	$(PY) -m pip install --upgrade pip
-	$(PY) -m pip install ruff pytest fastapi uvicorn httpx sqlalchemy alembic
+	$(PY) -m pip install ruff pytest fastapi uvicorn httpx sqlalchemy alembic pyjwt bcrypt
 
 lint:
 	$(RUFF) check .
