@@ -1,6 +1,9 @@
 """Minimal read-only API for DB-backed study and technique data.
 
 How it works:
+    - Exposes POST /v1/auth/register.
+    - Exposes POST /v1/auth/login.
+    - Exposes GET /v1/auth/me.
     - Exposes GET /v1/studies/{study_id}.
     - Exposes GET /v1/techniques/{technique_id_or_slug}.
     - Loads study data from the SQLite DB via SQLAlchemy.
@@ -20,12 +23,39 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
+from apps.api.auth import (
+    AuthConfigError,
+    DuplicateEmailError,
+    TokenExpiredError,
+    TokenValidationError,
+    authenticate_user,
+    build_token_response,
+    get_auth_settings,
+    get_user_by_id,
+    parse_bearer_token,
+    register_user,
+    verify_access_token,
+)
 from apps.api.request_context import get_viewer_entitlement
 from apps.api.studies import load_study_payload
 from apps.api.techniques import load_technique_payload
 
 app = FastAPI(title="Pavlonic API", version="0.1.0")
+
+AUTH_LOGIN_FAILURE_DETAIL = "Invalid email or password"
+AUTH_UNAUTHORIZED_DETAIL = "Invalid or expired token"
+AUTH_CONFIGURATION_DETAIL = "Auth is not configured."
+AUTH_BEARER_HEADER = {"WWW-Authenticate": "Bearer"}
+
+
+class AuthCredentialsRequest(BaseModel):
+    """Request payload for auth credential endpoints."""
+
+    email: str = Field(min_length=1)
+    password: str = Field(min_length=1)
+
 
 # Local dev-only CORS for the static web viewer.
 app.add_middleware(
@@ -38,6 +68,79 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+@app.post("/v1/auth/register")
+def register(credentials: AuthCredentialsRequest) -> dict:
+    """Register a user and return a bearer access token."""
+    try:
+        settings = get_auth_settings()
+        user = register_user(credentials.email, credentials.password, settings)
+    except AuthConfigError as exc:
+        raise HTTPException(status_code=500, detail=AUTH_CONFIGURATION_DETAIL) from exc
+    except DuplicateEmailError as exc:
+        raise HTTPException(status_code=409, detail="Email already registered.") from exc
+
+    return build_token_response(user.user_id, settings)
+
+
+@app.post("/v1/auth/login")
+def login(credentials: AuthCredentialsRequest) -> dict:
+    """Authenticate a user and return a bearer access token."""
+    try:
+        settings = get_auth_settings()
+    except AuthConfigError as exc:
+        raise HTTPException(status_code=500, detail=AUTH_CONFIGURATION_DETAIL) from exc
+
+    user = authenticate_user(credentials.email, credentials.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail=AUTH_LOGIN_FAILURE_DETAIL)
+
+    return build_token_response(user.user_id, settings)
+
+
+@app.get("/v1/auth/me")
+def get_me(request: Request) -> dict:
+    """Return the authenticated user's identity and entitlements shape."""
+    token = parse_bearer_token(request.headers.get("Authorization"))
+    if token is None:
+        raise HTTPException(
+            status_code=401,
+            detail=AUTH_UNAUTHORIZED_DETAIL,
+            headers=AUTH_BEARER_HEADER,
+        )
+
+    try:
+        settings = get_auth_settings()
+        user_id = verify_access_token(token, settings)
+    except AuthConfigError as exc:
+        raise HTTPException(status_code=500, detail=AUTH_CONFIGURATION_DETAIL) from exc
+    except (TokenExpiredError, TokenValidationError) as exc:
+        raise HTTPException(
+            status_code=401,
+            detail=AUTH_UNAUTHORIZED_DETAIL,
+            headers=AUTH_BEARER_HEADER,
+        ) from exc
+
+    user = get_user_by_id(user_id)
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail=AUTH_UNAUTHORIZED_DETAIL,
+            headers=AUTH_BEARER_HEADER,
+        )
+
+    return {
+        "user_id": user.user_id,
+        "email": user.email,
+        "plan_key": user.plan_key,
+        "entitlements": {
+            "content_access_rules_version": 1,
+            "is_paid": user.plan_key == "basic_paid",
+            "features": [],
+        },
+        "expires_at": None,
+    }
 
 
 @app.get("/v1/studies/{study_id}")
