@@ -16,15 +16,21 @@ Expected output:
 
 from __future__ import annotations
 
+import base64
+import binascii
+import hashlib
+import hmac
+import json
 import os
+import shutil
+import subprocess
+import tempfile
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import bcrypt
-import jwt
-from jwt import ExpiredSignatureError, InvalidTokenError
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -45,6 +51,13 @@ DEFAULT_BCRYPT_ROUNDS = 12
 DEFAULT_TOKEN_TYPE = "bearer"
 DEFAULT_PLAN_KEY = "free"
 DEFAULT_STATUS = "active"
+JWT_TYPE = "JWT"
+
+JWT_HMAC_ALGORITHMS: dict[str, Any] = {
+    "HS256": hashlib.sha256,
+    "HS384": hashlib.sha384,
+    "HS512": hashlib.sha512,
+}
 
 
 class AuthConfigError(ValueError):
@@ -95,13 +108,17 @@ def _parse_positive_int(raw_value: str | None, *, default: int, env_name: str) -
     return parsed
 
 
-def get_auth_settings(env: dict[str, str] | os._Environ[str] = os.environ) -> AuthSettings:
+def get_auth_settings(env: Mapping[str, str] = os.environ) -> AuthSettings:
     """Load auth settings from environment variables."""
     jwt_secret = env.get(JWT_SECRET_ENV, "").strip()
     if not jwt_secret:
         raise AuthConfigError(f"{JWT_SECRET_ENV} must be set.")
 
     jwt_algorithm = env.get(JWT_ALGORITHM_ENV, "").strip() or DEFAULT_JWT_ALGORITHM
+    if jwt_algorithm not in JWT_HMAC_ALGORITHMS:
+        supported = ", ".join(sorted(JWT_HMAC_ALGORITHMS.keys()))
+        raise AuthConfigError(f"{JWT_ALGORITHM_ENV} must be one of: {supported}.")
+
     access_token_ttl_seconds = _parse_positive_int(
         env.get(ACCESS_TOKEN_TTL_ENV),
         default=DEFAULT_ACCESS_TOKEN_TTL_SECONDS,
@@ -128,45 +145,132 @@ def normalize_email(email: str) -> str:
 
 def hash_password(password: str, bcrypt_rounds: int) -> str:
     """Hash a plaintext password with bcrypt."""
-    encoded_password = password.encode("utf-8")
-    hashed = bcrypt.hashpw(encoded_password, bcrypt.gensalt(rounds=bcrypt_rounds))
-    return hashed.decode("utf-8")
+    if bcrypt_rounds < 4 or bcrypt_rounds > 17:
+        raise AuthConfigError(f"{BCRYPT_ROUNDS_ENV} must be between 4 and 17.")
+
+    htpasswd = shutil.which("htpasswd")
+    if not htpasswd:
+        raise AuthConfigError("htpasswd command not found; bcrypt hashing is unavailable.")
+
+    result = subprocess.run(
+        [htpasswd, "-nbBC", str(bcrypt_rounds), "", password],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    output = result.stdout.strip()
+    _, separator, hashed = output.partition(":")
+    if not separator or not hashed.strip():
+        raise AuthConfigError("Failed to parse bcrypt hash output.")
+    return hashed.strip()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Return True when the plaintext password matches the hash."""
-    try:
-        return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
-    except ValueError:
+    htpasswd = shutil.which("htpasswd")
+    if not htpasswd:
+        raise AuthConfigError("htpasswd command not found; bcrypt verification is unavailable.")
+
+    if not password_hash.strip():
         return False
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as tmp:
+            tmp.write(f"user:{password_hash.strip()}\n")
+            tmp_path = tmp.name
+        result = subprocess.run(
+            [htpasswd, "-vb", tmp_path, "user", password],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.returncode == 0
+    except OSError:
+        return False
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+def _json_encode(payload: dict[str, Any]) -> bytes:
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _base64url_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+
+def _base64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(value + padding)
+
+
+def _jwt_sign(signing_input: bytes, settings: AuthSettings) -> bytes:
+    digest = JWT_HMAC_ALGORITHMS[settings.jwt_algorithm]
+    return hmac.new(settings.jwt_secret.encode("utf-8"), signing_input, digest).digest()
 
 
 def issue_access_token(user_id: str, settings: AuthSettings, now: datetime | None = None) -> str:
     """Issue a JWT access token containing only identity claims."""
     issued_at = now or datetime.now(timezone.utc)
     expires_at = issued_at + timedelta(seconds=settings.access_token_ttl_seconds)
+
+    header = {
+        "alg": settings.jwt_algorithm,
+        "typ": JWT_TYPE,
+    }
     payload: dict[str, Any] = {
         "sub": user_id,
-        "iat": issued_at,
-        "exp": expires_at,
+        "iat": int(issued_at.timestamp()),
+        "exp": int(expires_at.timestamp()),
     }
-    token = jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
-    return str(token)
+
+    header_segment = _base64url_encode(_json_encode(header))
+    payload_segment = _base64url_encode(_json_encode(payload))
+    signing_input = f"{header_segment}.{payload_segment}".encode("ascii")
+    signature_segment = _base64url_encode(_jwt_sign(signing_input, settings))
+    return f"{header_segment}.{payload_segment}.{signature_segment}"
 
 
 def verify_access_token(access_token: str, settings: AuthSettings) -> str:
     """Verify and decode a JWT access token, returning user_id from sub."""
     try:
-        payload = jwt.decode(
-            access_token,
-            settings.jwt_secret,
-            algorithms=[settings.jwt_algorithm],
-            options={"require": ["sub", "exp"]},
-        )
-    except ExpiredSignatureError as exc:
-        raise TokenExpiredError("Access token expired.") from exc
-    except InvalidTokenError as exc:
+        header_segment, payload_segment, signature_segment = access_token.split(".")
+    except ValueError as exc:
         raise TokenValidationError("Access token invalid.") from exc
+
+    signing_input = f"{header_segment}.{payload_segment}".encode("ascii")
+    expected_signature = _jwt_sign(signing_input, settings)
+    try:
+        actual_signature = _base64url_decode(signature_segment)
+    except (ValueError, binascii.Error) as exc:
+        raise TokenValidationError("Access token invalid.") from exc
+    if not hmac.compare_digest(expected_signature, actual_signature):
+        raise TokenValidationError("Access token invalid.")
+
+    try:
+        header = json.loads(_base64url_decode(header_segment).decode("utf-8"))
+        payload = json.loads(_base64url_decode(payload_segment).decode("utf-8"))
+    except (UnicodeDecodeError, ValueError, binascii.Error) as exc:
+        raise TokenValidationError("Access token invalid.") from exc
+
+    if not isinstance(header, dict) or not isinstance(payload, dict):
+        raise TokenValidationError("Access token invalid.")
+    if header.get("alg") != settings.jwt_algorithm:
+        raise TokenValidationError("Access token invalid.")
+    if header.get("typ") != JWT_TYPE:
+        raise TokenValidationError("Access token invalid.")
+
+    exp = payload.get("exp")
+    if not isinstance(exp, int):
+        raise TokenValidationError("Access token invalid.")
+    now_ts = int(datetime.now(timezone.utc).timestamp())
+    if now_ts >= exp:
+        raise TokenExpiredError("Access token expired.")
 
     user_id = payload.get("sub")
     if not isinstance(user_id, str) or not user_id.strip():
@@ -176,6 +280,11 @@ def verify_access_token(access_token: str, settings: AuthSettings) -> str:
 
 def _engine():
     return create_engine(get_db_url(), future=True)
+
+
+def _utcnow_naive() -> datetime:
+    """Return UTC now as a naive datetime for sqlite DateTime columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _to_auth_user(user: User) -> AuthUser:
@@ -189,7 +298,7 @@ def _to_auth_user(user: User) -> AuthUser:
 def register_user(email: str, password: str, settings: AuthSettings) -> AuthUser:
     """Create a user account and return the stored auth-safe user shape."""
     normalized_email = normalize_email(email)
-    now = datetime.utcnow()
+    now = _utcnow_naive()
     user = User(
         user_id=str(uuid.uuid4()),
         email=normalized_email,
@@ -200,7 +309,7 @@ def register_user(email: str, password: str, settings: AuthSettings) -> AuthUser
         updated_at=now,
     )
 
-    with Session(_engine()) as session:
+    with Session(_engine(), expire_on_commit=False) as session:
         try:
             with session.begin():
                 session.add(user)
@@ -213,9 +322,9 @@ def register_user(email: str, password: str, settings: AuthSettings) -> AuthUser
 def authenticate_user(email: str, password: str) -> AuthUser | None:
     """Validate credentials and return the auth-safe user shape when valid."""
     normalized_email = normalize_email(email)
-    now = datetime.utcnow()
+    now = _utcnow_naive()
 
-    with Session(_engine()) as session:
+    with Session(_engine(), expire_on_commit=False) as session:
         user = session.query(User).filter(User.email == normalized_email).one_or_none()
         if user is None:
             return None
@@ -231,7 +340,7 @@ def authenticate_user(email: str, password: str) -> AuthUser | None:
 
 def get_user_by_id(user_id: str) -> AuthUser | None:
     """Return an auth-safe user shape for an existing user id."""
-    with Session(_engine()) as session:
+    with Session(_engine(), expire_on_commit=False) as session:
         user = session.get(User, user_id)
         if user is None:
             return None
