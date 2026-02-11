@@ -1,10 +1,14 @@
-"""API tests for the DB-backed technique read endpoint."""
+"""API tests for auth-backed technique read gating and anti-leak behavior."""
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi.testclient import TestClient
 
+from apps.api.auth import get_auth_settings, issue_access_token
 from apps.api.main import app
+from apps.api.tests.helpers import bearer_headers, login_user, register_user, set_user_plan_key
 
 
 client = TestClient(app)
@@ -42,7 +46,16 @@ def _resolved_keys(payload: dict) -> set[str]:
     return set(payload["resolved_results"].keys())
 
 
-def test_get_technique_returns_200(seeded_db) -> None:
+def _mapping_result_ids(payload: dict) -> set[str]:
+    return {entry["result_id"] for entry in payload["mapping_json"]}
+
+
+def _has_vary_authorization(response) -> bool:
+    vary = response.headers.get("Vary", "")
+    return any(part.strip().lower() == "authorization" for part in vary.split(","))
+
+
+def test_get_technique_returns_200_preview_for_unauthenticated(seeded_db) -> None:
     response = client.get("/v1/techniques/spaced-practice")
 
     assert response.status_code == 200
@@ -51,22 +64,16 @@ def test_get_technique_returns_200(seeded_db) -> None:
     assert payload["viewer_entitlement"] == "public"
     assert payload["title"]
     assert payload["summary"]
-    assert payload["mapping_json"]
     assert payload["tables"]
+    assert len(_collect_rows(payload["tables"])) == 1
+    assert _find_overall_row(payload["tables"]) is not None
 
-    overall_row = _find_overall_row(payload["tables"])
-    assert overall_row is not None
-    assert "performance" in overall_row
-    assert "learning" in overall_row
-    assert "refs" in overall_row["performance"]
-    assert "refs" in overall_row["learning"]
-
-    refs = _collect_refs(payload["tables"])
-    assert refs
-    assert _resolved_keys(payload) == refs
-    for entry in payload["resolved_results"].values():
-        assert entry["study_id"]
-        assert entry["result_id"]
+    # Preview must not leak expanded references/results.
+    assert _mapping_result_ids(payload) == {"R1"}
+    assert _collect_refs(payload["tables"]) == {"0001:R1"}
+    assert _resolved_keys(payload) == {"0001:R1"}
+    assert response.headers.get("Cache-Control") != "no-store"
+    assert _has_vary_authorization(response) is False
 
 
 def test_get_technique_returns_404_for_unknown(seeded_db) -> None:
@@ -75,29 +82,124 @@ def test_get_technique_returns_404_for_unknown(seeded_db) -> None:
     assert response.status_code == 404
 
 
-def test_get_technique_filters_rows_and_refs_by_entitlement(seeded_db) -> None:
-    public_response = client.get("/v1/techniques/spaced-practice")
+def test_get_technique_unauthenticated_free_and_paid_matrix(seeded_db) -> None:
+    register_user(
+        client,
+        email="technique-free@example.com",
+        password="correct-password",
+    )
+    free_login = login_user(
+        client,
+        email="technique-free@example.com",
+        password="correct-password",
+    )
+
+    register_user(
+        client,
+        email="technique-paid@example.com",
+        password="correct-password",
+    )
+    set_user_plan_key(
+        seeded_db,
+        email="technique-paid@example.com",
+        plan_key="basic_paid",
+    )
+    paid_login = login_user(
+        client,
+        email="technique-paid@example.com",
+        password="correct-password",
+    )
+
+    unauth_response = client.get("/v1/techniques/spaced-practice")
+    free_response = client.get(
+        "/v1/techniques/spaced-practice",
+        headers=bearer_headers(free_login["access_token"]),
+    )
     paid_response = client.get(
+        "/v1/techniques/spaced-practice",
+        headers=bearer_headers(paid_login["access_token"]),
+    )
+
+    assert unauth_response.status_code == 200
+    assert free_response.status_code == 200
+    assert paid_response.status_code == 200
+
+    unauth_payload = unauth_response.json()
+    free_payload = free_response.json()
+    paid_payload = paid_response.json()
+
+    assert unauth_payload["viewer_entitlement"] == "public"
+    assert free_payload["viewer_entitlement"] == "public"
+    assert paid_payload["viewer_entitlement"] == "paid"
+
+    assert len(_collect_rows(unauth_payload["tables"])) == 1
+    assert len(_collect_rows(free_payload["tables"])) == 1
+    assert len(_collect_rows(paid_payload["tables"])) > 1
+
+    assert _mapping_result_ids(unauth_payload) == {"R1"}
+    assert _mapping_result_ids(free_payload) == {"R1"}
+    assert _mapping_result_ids(paid_payload) == {"R1", "R2", "R3"}
+
+    assert _collect_refs(unauth_payload["tables"]) == {"0001:R1"}
+    assert _collect_refs(free_payload["tables"]) == {"0001:R1"}
+    assert _collect_refs(paid_payload["tables"]) == {"0001:R1", "0001:R2", "0001:R3"}
+
+    assert _resolved_keys(unauth_payload) == {"0001:R1"}
+    assert _resolved_keys(free_payload) == {"0001:R1"}
+    assert _resolved_keys(paid_payload) == {"0001:R1", "0001:R2", "0001:R3"}
+
+    assert free_response.headers.get("Cache-Control") == "no-store"
+    assert paid_response.headers.get("Cache-Control") == "no-store"
+    assert _has_vary_authorization(free_response) is True
+    assert _has_vary_authorization(paid_response) is True
+
+
+def test_get_technique_dev_entitlement_header_does_not_elevate(seeded_db) -> None:
+    response = client.get(
         "/v1/techniques/spaced-practice",
         headers={"X-Pavlonic-Entitlement": "paid"},
     )
 
-    assert public_response.status_code == 200
-    assert paid_response.status_code == 200
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["viewer_entitlement"] == "public"
+    assert len(_collect_rows(payload["tables"])) == 1
+    assert _mapping_result_ids(payload) == {"R1"}
+    assert _collect_refs(payload["tables"]) == {"0001:R1"}
+    assert _resolved_keys(payload) == {"0001:R1"}
 
-    public_payload = public_response.json()
-    paid_payload = paid_response.json()
 
-    public_rows = _collect_rows(public_payload["tables"])
-    paid_rows = _collect_rows(paid_payload["tables"])
+def test_get_technique_invalid_and_expired_tokens_fall_back_to_preview(seeded_db) -> None:
+    invalid_response = client.get(
+        "/v1/techniques/spaced-practice",
+        headers={"Authorization": "Bearer this-is-not-a-valid-token"},
+    )
 
-    assert len(public_rows) < len(paid_rows)
-    assert len(public_rows) == 1
-    assert _find_overall_row(public_payload["tables"]) is not None
+    settings = get_auth_settings()
+    expired_token = issue_access_token(
+        "any-user-id",
+        settings,
+        now=datetime.now(timezone.utc) - timedelta(seconds=settings.access_token_ttl_seconds + 1),
+    )
+    expired_response = client.get(
+        "/v1/techniques/spaced-practice",
+        headers=bearer_headers(expired_token),
+    )
 
-    public_refs = _collect_refs(public_payload["tables"])
-    paid_refs = _collect_refs(paid_payload["tables"])
+    assert invalid_response.status_code == 200
+    assert expired_response.status_code == 200
 
-    assert public_refs < paid_refs
-    assert _resolved_keys(public_payload) == public_refs
-    assert _resolved_keys(paid_payload) == paid_refs
+    invalid_payload = invalid_response.json()
+    expired_payload = expired_response.json()
+    assert invalid_payload["viewer_entitlement"] == "public"
+    assert expired_payload["viewer_entitlement"] == "public"
+    assert len(_collect_rows(invalid_payload["tables"])) == 1
+    assert len(_collect_rows(expired_payload["tables"])) == 1
+    assert _mapping_result_ids(invalid_payload) == {"R1"}
+    assert _mapping_result_ids(expired_payload) == {"R1"}
+    assert _collect_refs(invalid_payload["tables"]) == {"0001:R1"}
+    assert _collect_refs(expired_payload["tables"]) == {"0001:R1"}
+    assert _resolved_keys(invalid_payload) == {"0001:R1"}
+    assert _resolved_keys(expired_payload) == {"0001:R1"}
+    assert invalid_response.headers.get("Cache-Control") != "no-store"
+    assert expired_response.headers.get("Cache-Control") != "no-store"
