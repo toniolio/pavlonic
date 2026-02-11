@@ -68,7 +68,7 @@ def viewer_entitlement_for_context(
     """Return compatibility `viewer_entitlement` derived from auth + plan.
 
     Mapping is fixed for E004:
-    - unauthenticated -> public
+    - unauthenticated (any plan value) -> public
     - authenticated free/unknown -> public
     - authenticated basic_paid -> paid
     """

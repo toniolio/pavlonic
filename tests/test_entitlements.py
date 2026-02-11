@@ -55,9 +55,23 @@ def test_viewer_entitlement_compatibility_mapping_is_output_only() -> None:
     assert (
         viewer_entitlement_for_context(
             is_authenticated=True,
+            plan_key="unknown",
+        )
+        == VIEWER_ENTITLEMENT_PUBLIC
+    )
+    assert (
+        viewer_entitlement_for_context(
+            is_authenticated=True,
             plan_key="basic_paid",
         )
         == VIEWER_ENTITLEMENT_PAID
+    )
+    assert (
+        viewer_entitlement_for_context(
+            is_authenticated=False,
+            plan_key="basic_paid",
+        )
+        == VIEWER_ENTITLEMENT_PUBLIC
     )
 
 
