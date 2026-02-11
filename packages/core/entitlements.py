@@ -1,15 +1,14 @@
-"""Entitlement helpers for gating study sections.
+"""Entitlement helpers for plan-key and compatibility entitlement policy.
 
 How it works:
-    - Provide a small can_view helper that maps sections to entitlements.
-    - Provide a helper to filter study results based on visibility rules.
+    - Canonical enforcement is plan-key based (`free`, `basic_paid`).
+    - Compatibility output remains `viewer_entitlement` (`public|paid`) for E004.
+    - Unknown/missing plan keys fail closed to preview-only behavior.
+    - Existing can_view(section, viewer_entitlement) callers remain supported.
 
 How to run:
-    - Import can_view and call it from application code.
-
-Expected output:
-    - can_view returns True/False based on section and entitlement.
-    - filter_results_for_viewer returns a Study dict with gated results removed.
+    - Import plan-key helpers for new enforcement logic.
+    - Keep using can_view in legacy callers until endpoint rewiring is complete.
 """
 
 from __future__ import annotations
@@ -19,22 +18,76 @@ from dataclasses import asdict
 from .models import Result, Study
 
 
-ENTITLEMENT_VALUES = {"public", "paid"}
+PLAN_KEY_FREE = "free"
+PLAN_KEY_BASIC_PAID = "basic_paid"
+PLAN_KEY_VALUES = {PLAN_KEY_FREE, PLAN_KEY_BASIC_PAID}
+
+VIEWER_ENTITLEMENT_PUBLIC = "public"
+VIEWER_ENTITLEMENT_PAID = "paid"
+ENTITLEMENT_VALUES = {VIEWER_ENTITLEMENT_PUBLIC, VIEWER_ENTITLEMENT_PAID}
+
+CONTENT_ACCESS_RULES_VERSION = 1
 
 
-def can_view(section: str, viewer_entitlement: str) -> bool:
-    """Return True if the viewer is allowed to see the section."""
-    if viewer_entitlement not in ENTITLEMENT_VALUES:
-        return False
+def is_paid_plan_key(plan_key: str | None) -> bool:
+    """Return True only for the canonical paid plan key."""
+    return plan_key == PLAN_KEY_BASIC_PAID
 
+
+def has_preview_access(plan_key: str | None) -> bool:
+    """Return True when preview access is allowed for the plan key."""
+    return not is_paid_plan_key(plan_key)
+
+
+def has_full_access(plan_key: str | None) -> bool:
+    """Return True when full access is allowed for the plan key."""
+    return is_paid_plan_key(plan_key)
+
+
+def can_view_for_plan_key(section: str, plan_key: str | None) -> bool:
+    """Return True when a canonical plan key can view the section.
+
+    This function accepts canonical plan keys only. Non-canonical inputs
+    fail closed by behaving as preview-only.
+    """
     if section == "study.summary":
         return True
     if section == "study.results.overall":
         return True
     if section == "study.results.expanded":
-        return viewer_entitlement == "paid"
+        return has_full_access(plan_key)
 
     return False
+
+
+def viewer_entitlement_for_context(
+    *,
+    is_authenticated: bool,
+    plan_key: str | None,
+) -> str:
+    """Return compatibility `viewer_entitlement` derived from auth + plan.
+
+    Mapping is fixed for E004:
+    - unauthenticated -> public
+    - authenticated free/unknown -> public
+    - authenticated basic_paid -> paid
+    """
+    if is_authenticated and is_paid_plan_key(plan_key):
+        return VIEWER_ENTITLEMENT_PAID
+    return VIEWER_ENTITLEMENT_PUBLIC
+
+
+def can_view(section: str, viewer_entitlement: str) -> bool:
+    """Return True if the compatibility viewer entitlement can see section."""
+    if viewer_entitlement not in ENTITLEMENT_VALUES:
+        return False
+
+    plan_key = (
+        PLAN_KEY_BASIC_PAID
+        if viewer_entitlement == VIEWER_ENTITLEMENT_PAID
+        else PLAN_KEY_FREE
+    )
+    return can_view_for_plan_key(section, plan_key)
 
 
 def _is_result_visible(result: Result, viewer_entitlement: str) -> bool:
