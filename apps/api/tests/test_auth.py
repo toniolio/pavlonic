@@ -138,6 +138,20 @@ def test_me_with_invalid_token_returns_401(seeded_db) -> None:
     assert response.json() == UNAUTHORIZED_DETAIL
 
 
+def test_me_with_invalid_token_and_dev_header_still_returns_401(seeded_db) -> None:
+    headers = {
+        **_token_headers("this-is-not-a-valid-token"),
+        "X-Pavlonic-Entitlement": "paid",
+    }
+    response = client.get(
+        "/v1/auth/me",
+        headers=headers,
+    )
+
+    assert response.status_code == 401
+    assert response.json() == UNAUTHORIZED_DETAIL
+
+
 def test_me_with_token_for_missing_user_returns_401(seeded_db) -> None:
     settings = get_auth_settings()
     token = issue_access_token("missing-user-id", settings)
