@@ -6,7 +6,7 @@ How it works:
     - Serialize ORM rows into a deterministic, public-safe JSON payload.
 
 How to run:
-    - python -c "from apps.api.studies import load_study_payload; print(load_study_payload('0001', 'public'))"
+    - python -c "from apps.api.access_context import build_read_access_context; from apps.api.studies import load_study_payload; print(load_study_payload('0001', build_read_access_context(is_authenticated=False, plan_key=None)))"
 
 Expected output:
     - A study payload dict matching the demo JSON shape, or None if missing.
@@ -20,11 +20,12 @@ from typing import Any, Iterable
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from apps.api.access_context import ReadAccessContext
 from apps.api.db import get_db_url
 from apps.api.db_models import Outcome as OutcomeModel
 from apps.api.db_models import Result as ResultModel
 from apps.api.db_models import Study as StudyModel
-from packages.core.entitlements import can_view
+from packages.core.entitlements import can_view_for_plan_key
 
 
 RESULT_VISIBILITY_OVERALL = "overall"
@@ -42,12 +43,12 @@ def _deserialize_authors(authors_text: str) -> list[str]:
     return [str(parsed)]
 
 
-def _allowed_result_visibilities(viewer_entitlement: str) -> tuple[str, ...]:
+def _allowed_result_visibilities(access_context: ReadAccessContext) -> tuple[str, ...]:
     """Return the result visibility values allowed for the viewer."""
     allowed: list[str] = []
-    if can_view("study.results.overall", viewer_entitlement):
+    if can_view_for_plan_key("study.results.overall", access_context.plan_key):
         allowed.append(RESULT_VISIBILITY_OVERALL)
-    if can_view("study.results.expanded", viewer_entitlement):
+    if can_view_for_plan_key("study.results.expanded", access_context.plan_key):
         allowed.append(RESULT_VISIBILITY_EXPANDED)
     return tuple(allowed)
 
@@ -90,7 +91,7 @@ def _study_payload(
     study: StudyModel,
     outcomes: Iterable[OutcomeModel],
     results: Iterable[ResultModel],
-    viewer_entitlement: str,
+    access_context: ReadAccessContext,
 ) -> dict[str, Any]:
     return {
         "study_id": study.study_id,
@@ -102,14 +103,17 @@ def _study_payload(
             "venue": study.venue,
         },
         "study_type": study.study_type,
-        "viewer_entitlement": viewer_entitlement,
+        "viewer_entitlement": access_context.viewer_entitlement,
         "groups": [],
         "outcomes": [_outcome_payload(outcome) for outcome in outcomes],
         "results": [_result_payload(result) for result in results],
     }
 
 
-def load_study_payload(study_id: str, viewer_entitlement: str) -> dict[str, Any] | None:
+def load_study_payload(
+    study_id: str,
+    access_context: ReadAccessContext,
+) -> dict[str, Any] | None:
     """Load a study payload from the DB or return None if missing."""
     db_url = get_db_url()
     engine = create_engine(db_url, future=True)
@@ -126,7 +130,7 @@ def load_study_payload(study_id: str, viewer_entitlement: str) -> dict[str, Any]
             .all()
         )
 
-        allowed = _allowed_result_visibilities(viewer_entitlement)
+        allowed = _allowed_result_visibilities(access_context)
         if allowed:
             results = (
                 session.query(ResultModel)
@@ -137,4 +141,4 @@ def load_study_payload(study_id: str, viewer_entitlement: str) -> dict[str, Any]
         else:
             results = []
 
-    return _study_payload(study, outcomes, results, viewer_entitlement)
+    return _study_payload(study, outcomes, results, access_context)

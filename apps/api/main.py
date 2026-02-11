@@ -21,10 +21,11 @@ Expected output:
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from apps.api.access_context import ReadAccessContext, build_read_access_context
 from apps.api.auth import (
     AuthConfigError,
     DuplicateEmailError,
@@ -35,8 +36,8 @@ from apps.api.auth import (
 )
 from apps.api.request_context import (
     RequestAuthenticationError,
-    get_viewer_entitlement,
     require_authenticated_request_context,
+    resolve_request_auth_context,
 )
 from apps.api.studies import load_study_payload
 from apps.api.techniques import load_technique_payload
@@ -67,6 +68,17 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+
+def _set_authenticated_read_cache_headers(
+    response: Response,
+    access_context: ReadAccessContext,
+) -> None:
+    """Set cache-safety headers for authenticated entitlement-sensitive responses."""
+    if not access_context.is_authenticated:
+        return
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Vary"] = "Authorization"
 
 
 @app.post("/v1/auth/register")
@@ -126,22 +138,32 @@ def get_me(request: Request) -> dict:
 
 
 @app.get("/v1/studies/{study_id}")
-def get_study(study_id: str, request: Request) -> dict:
+def get_study(study_id: str, request: Request, response: Response) -> dict:
     """Return the study payload by ID."""
-    viewer_entitlement = get_viewer_entitlement(request)
-    study = load_study_payload(study_id, viewer_entitlement)
+    auth_context = resolve_request_auth_context(request)
+    access_context = build_read_access_context(
+        is_authenticated=auth_context.is_authenticated,
+        plan_key=auth_context.plan_key,
+    )
+    study = load_study_payload(study_id, access_context)
     if study is None:
         raise HTTPException(status_code=404, detail="Study not found")
 
+    _set_authenticated_read_cache_headers(response, access_context)
     return study
 
 
 @app.get("/v1/techniques/{technique_id_or_slug}")
-def get_technique(technique_id_or_slug: str, request: Request) -> dict:
+def get_technique(technique_id_or_slug: str, request: Request, response: Response) -> dict:
     """Return the technique payload by ID or slug."""
-    viewer_entitlement = get_viewer_entitlement(request)
-    technique = load_technique_payload(technique_id_or_slug, viewer_entitlement)
+    auth_context = resolve_request_auth_context(request)
+    access_context = build_read_access_context(
+        is_authenticated=auth_context.is_authenticated,
+        plan_key=auth_context.plan_key,
+    )
+    technique = load_technique_payload(technique_id_or_slug, access_context)
     if technique is None:
         raise HTTPException(status_code=404, detail="Technique not found")
 
+    _set_authenticated_read_cache_headers(response, access_context)
     return technique

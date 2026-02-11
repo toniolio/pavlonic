@@ -6,7 +6,7 @@ How it works:
     - Filter mapped results and topic table rows server-side based on viewer entitlements.
 
 How to run:
-    - python -c "from apps.api.techniques import load_technique_payload; print(load_technique_payload('spaced-practice', 'public'))"
+    - python -c "from apps.api.access_context import build_read_access_context; from apps.api.techniques import load_technique_payload; print(load_technique_payload('spaced-practice', build_read_access_context(is_authenticated=False, plan_key=None)))"
 
 Expected output:
     - A technique payload dict matching the API shape, or None if missing.
@@ -20,12 +20,13 @@ from typing import Any, Iterable
 from sqlalchemy import create_engine, tuple_
 from sqlalchemy.orm import Session
 
+from apps.api.access_context import ReadAccessContext
 from apps.api.db import get_db_url
 from apps.api.db_models import Outcome as OutcomeModel
 from apps.api.db_models import Result as ResultModel
 from apps.api.db_models import Study as StudyModel
 from apps.api.db_models import Technique as TechniqueModel
-from packages.core.entitlements import can_view
+from packages.core.entitlements import can_view_for_plan_key
 
 
 RESULT_VISIBILITY_OVERALL = "overall"
@@ -43,12 +44,12 @@ def _deserialize_authors(authors_text: str) -> list[str]:
     return [str(parsed)]
 
 
-def _allowed_result_visibilities(viewer_entitlement: str) -> tuple[str, ...]:
+def _allowed_result_visibilities(access_context: ReadAccessContext) -> tuple[str, ...]:
     """Return the result visibility values allowed for the viewer."""
     allowed: list[str] = []
-    if can_view("study.results.overall", viewer_entitlement):
+    if can_view_for_plan_key("study.results.overall", access_context.plan_key):
         allowed.append(RESULT_VISIBILITY_OVERALL)
-    if can_view("study.results.expanded", viewer_entitlement):
+    if can_view_for_plan_key("study.results.expanded", access_context.plan_key):
         allowed.append(RESULT_VISIBILITY_EXPANDED)
     return tuple(allowed)
 
@@ -128,10 +129,10 @@ def _is_overall_row(row: dict[str, Any]) -> bool:
 
 def _filter_tables_for_entitlement(
     tables: list[dict[str, Any]],
-    viewer_entitlement: str,
+    access_context: ReadAccessContext,
 ) -> list[dict[str, Any]]:
     """Return tables filtered by viewer entitlement."""
-    if can_view("study.results.expanded", viewer_entitlement):
+    if can_view_for_plan_key("study.results.expanded", access_context.plan_key):
         return tables
 
     filtered_tables: list[dict[str, Any]] = []
@@ -246,7 +247,7 @@ def _result_payload(result: ResultModel) -> dict[str, Any]:
 
 def load_technique_payload(
     technique_id_or_slug: str,
-    viewer_entitlement: str,
+    access_context: ReadAccessContext,
 ) -> dict[str, Any] | None:
     """Load a technique payload from the DB or return None if missing."""
     db_url = get_db_url()
@@ -257,7 +258,7 @@ def load_technique_payload(
         if technique is None:
             return None
 
-        allowed_visibilities = _allowed_result_visibilities(viewer_entitlement)
+        allowed_visibilities = _allowed_result_visibilities(access_context)
         if technique.visibility not in allowed_visibilities:
             return None
 
@@ -316,7 +317,7 @@ def load_technique_payload(
                 filtered_mapping.append(item)
 
         tables = _normalize_tables(technique.tables_json)
-        tables = _filter_tables_for_entitlement(tables, viewer_entitlement)
+        tables = _filter_tables_for_entitlement(tables, access_context)
         table_refs = _collect_table_refs(tables)
         table_pairs = {_parse_ref(ref) for ref in table_refs}
         table_pairs.discard(None)
@@ -349,7 +350,7 @@ def load_technique_payload(
         "title": technique.title,
         "summary": technique.summary,
         "visibility": technique.visibility,
-        "viewer_entitlement": viewer_entitlement,
+        "viewer_entitlement": access_context.viewer_entitlement,
         "mapping_json": filtered_mapping,
         "results": mapped_results,
         "tables": tables,

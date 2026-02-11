@@ -1,15 +1,12 @@
 """Request context helpers for API endpoints.
 
 How it works:
-    - Read the viewer entitlement from a strict header override.
-    - Default to "public" for missing/invalid values.
     - Resolve auth identity + plan from Authorization bearer token.
 
 How to run:
-    - Import get_viewer_entitlement or resolve_request_auth_context inside a FastAPI handler.
+    - Import resolve_request_auth_context inside a FastAPI handler.
 
 Expected output:
-    - Returns "public" or "paid" based on request headers.
     - Returns an authenticated or unauthenticated request auth context.
 """
 
@@ -28,11 +25,6 @@ from apps.api.auth import (
     parse_bearer_token,
     verify_access_token,
 )
-from packages.core.entitlements import ENTITLEMENT_VALUES
-
-
-ENTITLEMENT_HEADER = "X-Pavlonic-Entitlement"
-DEFAULT_VIEWER_ENTITLEMENT = "public"
 AUTH_STATE_UNAUTHENTICATED = "unauthenticated"
 AUTH_STATE_AUTHENTICATED = "authenticated"
 
@@ -99,11 +91,3 @@ def require_authenticated_request_context(request: Request) -> RequestAuthContex
     if not context.is_authenticated:
         raise RequestAuthenticationError("Authenticated request required.")
     return context
-
-
-def get_viewer_entitlement(request: Request) -> str:
-    """Return the viewer entitlement derived from the request headers."""
-    raw_value = request.headers.get(ENTITLEMENT_HEADER, "").strip().lower()
-    if raw_value in ENTITLEMENT_VALUES:
-        return raw_value
-    return DEFAULT_VIEWER_ENTITLEMENT
