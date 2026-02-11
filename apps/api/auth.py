@@ -22,15 +22,13 @@ import hashlib
 import hmac
 import json
 import os
-import shutil
-import subprocess
-import tempfile
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -148,52 +146,25 @@ def hash_password(password: str, bcrypt_rounds: int) -> str:
     if bcrypt_rounds < 4 or bcrypt_rounds > 17:
         raise AuthConfigError(f"{BCRYPT_ROUNDS_ENV} must be between 4 and 17.")
 
-    htpasswd = shutil.which("htpasswd")
-    if not htpasswd:
-        raise AuthConfigError("htpasswd command not found; bcrypt hashing is unavailable.")
-
-    result = subprocess.run(
-        [htpasswd, "-nbBC", str(bcrypt_rounds), "", password],
-        capture_output=True,
-        text=True,
-        check=True,
+    hashed = bcrypt.hashpw(
+        password.encode("utf-8"),
+        bcrypt.gensalt(rounds=bcrypt_rounds),
     )
-    output = result.stdout.strip()
-    _, separator, hashed = output.partition(":")
-    if not separator or not hashed.strip():
-        raise AuthConfigError("Failed to parse bcrypt hash output.")
-    return hashed.strip()
+    return hashed.decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
     """Return True when the plaintext password matches the hash."""
-    htpasswd = shutil.which("htpasswd")
-    if not htpasswd:
-        raise AuthConfigError("htpasswd command not found; bcrypt verification is unavailable.")
-
     if not password_hash.strip():
         return False
 
-    tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False) as tmp:
-            tmp.write(f"user:{password_hash.strip()}\n")
-            tmp_path = tmp.name
-        result = subprocess.run(
-            [htpasswd, "-vb", tmp_path, "user", password],
-            capture_output=True,
-            text=True,
-            check=False,
+        return bcrypt.checkpw(
+            password.encode("utf-8"),
+            password_hash.strip().encode("utf-8"),
         )
-        return result.returncode == 0
-    except OSError:
+    except ValueError:
         return False
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
 
 
 def _json_encode(payload: dict[str, Any]) -> bytes:
