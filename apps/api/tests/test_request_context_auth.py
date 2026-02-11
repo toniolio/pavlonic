@@ -70,3 +70,34 @@ def test_resolve_request_auth_context_with_missing_user_token_is_unauthenticated
     assert context.user_id is None
     assert context.email is None
     assert context.plan_key is None
+
+
+def test_resolve_request_auth_context_ignores_dev_entitlement_header(seeded_db) -> None:
+    context = resolve_request_auth_context(
+        _request_with_headers({"X-Pavlonic-Entitlement": "paid"})
+    )
+
+    assert context.auth_state == AUTH_STATE_UNAUTHENTICATED
+    assert context.user_id is None
+    assert context.email is None
+    assert context.plan_key is None
+
+
+def test_resolve_request_auth_context_ignores_dev_header_with_valid_token(seeded_db) -> None:
+    settings = get_auth_settings()
+    user = register_user("request-context-header@example.com", "correct-password", settings)
+    token = issue_access_token(user.user_id, settings)
+
+    context = resolve_request_auth_context(
+        _request_with_headers(
+            {
+                "Authorization": f"Bearer {token}",
+                "X-Pavlonic-Entitlement": "paid",
+            }
+        )
+    )
+
+    assert context.auth_state == AUTH_STATE_AUTHENTICATED
+    assert context.user_id == user.user_id
+    assert context.email == "request-context-header@example.com"
+    assert context.plan_key == "free"
