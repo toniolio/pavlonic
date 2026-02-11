@@ -138,6 +138,16 @@ def test_me_with_invalid_token_returns_401(seeded_db) -> None:
     assert response.json() == UNAUTHORIZED_DETAIL
 
 
+def test_me_with_token_for_missing_user_returns_401(seeded_db) -> None:
+    settings = get_auth_settings()
+    token = issue_access_token("missing-user-id", settings)
+
+    response = client.get("/v1/auth/me", headers=_token_headers(token))
+
+    assert response.status_code == 401
+    assert response.json() == UNAUTHORIZED_DETAIL
+
+
 def test_me_with_expired_token_returns_401(seeded_db) -> None:
     _register("me-expired@example.com", "correct-password")
 
