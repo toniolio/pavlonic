@@ -28,17 +28,16 @@ from pydantic import BaseModel, Field
 from apps.api.auth import (
     AuthConfigError,
     DuplicateEmailError,
-    TokenExpiredError,
-    TokenValidationError,
     authenticate_user,
     build_token_response,
     get_auth_settings,
-    get_user_by_id,
-    parse_bearer_token,
     register_user,
-    verify_access_token,
 )
-from apps.api.request_context import get_viewer_entitlement
+from apps.api.request_context import (
+    RequestAuthenticationError,
+    get_viewer_entitlement,
+    require_authenticated_request_context,
+)
 from apps.api.studies import load_study_payload
 from apps.api.techniques import load_technique_payload
 
@@ -102,41 +101,24 @@ def login(credentials: AuthCredentialsRequest) -> dict:
 @app.get("/v1/auth/me")
 def get_me(request: Request) -> dict:
     """Return the authenticated user's identity and entitlements shape."""
-    token = parse_bearer_token(request.headers.get("Authorization"))
-    if token is None:
-        raise HTTPException(
-            status_code=401,
-            detail=AUTH_UNAUTHORIZED_DETAIL,
-            headers=AUTH_BEARER_HEADER,
-        )
-
     try:
-        settings = get_auth_settings()
-        user_id = verify_access_token(token, settings)
+        context = require_authenticated_request_context(request)
     except AuthConfigError as exc:
         raise HTTPException(status_code=500, detail=AUTH_CONFIGURATION_DETAIL) from exc
-    except (TokenExpiredError, TokenValidationError) as exc:
+    except RequestAuthenticationError as exc:
         raise HTTPException(
             status_code=401,
             detail=AUTH_UNAUTHORIZED_DETAIL,
             headers=AUTH_BEARER_HEADER,
         ) from exc
 
-    user = get_user_by_id(user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail=AUTH_UNAUTHORIZED_DETAIL,
-            headers=AUTH_BEARER_HEADER,
-        )
-
     return {
-        "user_id": user.user_id,
-        "email": user.email,
-        "plan_key": user.plan_key,
+        "user_id": context.user_id,
+        "email": context.email,
+        "plan_key": context.plan_key,
         "entitlements": {
             "content_access_rules_version": 1,
-            "is_paid": user.plan_key == "basic_paid",
+            "is_paid": context.plan_key == "basic_paid",
             "features": [],
         },
         "expires_at": None,
