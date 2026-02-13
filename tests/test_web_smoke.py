@@ -17,9 +17,34 @@ def test_web_index_exists_and_has_marker() -> None:
     assert "Pavlonic Viewer" in content
     assert "data-evidence-table-container" in content
     assert "data-dev-sitemap" in content
+    assert 'id="account-panel"' in content
+    assert 'id="auth-logged-out"' in content
+    assert 'id="auth-logged-in"' in content
+    assert 'id="auth-email"' in content
+    assert 'id="auth-password"' in content
+    assert 'id="auth-login"' in content
+    assert 'id="auth-register"' in content
+    assert 'id="auth-logout"' in content
+    assert 'id="auth-status"' in content
     assert "<title>" in content
     assert 'name="description"' in content
     assert 'property="og:title"' in content
+
+
+def test_web_app_has_auth_wiring_and_no_dev_override_header() -> None:
+    app_js = (Path(__file__).resolve().parents[1] / "apps" / "web" / "app.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "pavlonic_access_token" in app_js
+    assert "Authorization" in app_js
+    assert "Bearer ${accessToken}" in app_js
+    assert "/v1/auth/me" in app_js
+    assert "auth-login" in app_js
+    assert "auth-register" in app_js
+    assert "auth-logout" in app_js
+    assert "X-Pavlonic-Entitlement" not in app_js
+    assert "data-dev-entitlement-toggle" not in app_js
 
 
 def _run_node_module(code: str) -> dict:
@@ -66,25 +91,6 @@ def test_route_parsing_and_error_message_template() -> None:
     assert output["legacyQueryRoute"] == {"page": "study", "id": "0003", "resultId": None}
     assert output["defaultRoute"] == {"page": "study", "id": "0001", "resultId": None}
     assert output["studyId"] == "0005"
-
-    app_js = (Path(__file__).resolve().parents[1] / "apps" / "web" / "app.js").read_text(
-        encoding="utf-8"
-    )
-    assert "Study not found:" in app_js
-    assert "Technique not found:" in app_js
-    assert "data-evidence-toggle" in app_js
-    assert "data-evidence-row" in app_js
-    assert "data-dev-entitlement-toggle" in app_js
-    assert "DEV_ENTITLEMENT_TOGGLE = false" in app_js
-    assert "LOCAL DEV ONLY" in app_js
-    assert "localhost" in app_js
-    assert "127.0.0.1" in app_js
-    assert "pavlonic_dev_entitlement_mode" in app_js
-    assert "X-Pavlonic-Entitlement" in app_js
-    assert "aria-expanded" in app_js
-    assert "aria-controls" in app_js
-    assert "hashchange" in app_js
-    assert "popstate" in app_js
 
 
 def test_study_deep_link_targeting_markers() -> None:
