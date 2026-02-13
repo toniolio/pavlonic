@@ -32,6 +32,24 @@
     <main>
       <h1>Pavlonic Viewer</h1>
 
+      <section id="account-panel" aria-live="polite">
+        <h2>Account</h2>
+        <p id="auth-status">Logged out</p>
+
+        <div id="auth-logged-out">
+          <label for="auth-email">Email</label>
+          <input id="auth-email" type="email" autocomplete="email" />
+          <label for="auth-password">Password</label>
+          <input id="auth-password" type="password" autocomplete="current-password" />
+          <button id="auth-login" type="button">Login</button>
+          <button id="auth-register" type="button">Register</button>
+        </div>
+
+        <div id="auth-logged-in" hidden>
+          <button id="auth-logout" type="button">Logout</button>
+        </div>
+      </section>
+
       <section id="status" aria-live="polite">Loading…</section>
 
       <section id="study" hidden>
