@@ -2,6 +2,7 @@ import { getRouteFromLocation } from "./study_id.js";
 import { renderStudyResultsHtml } from "./results_renderer.js";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
+const ACCESS_TOKEN_STORAGE_KEY = "pavlonic_access_token";
 
 const statusEl = document.getElementById("status");
 const studySection = document.getElementById("study");
@@ -70,6 +71,30 @@ function setPageVisibility({ status = false, study = false, technique = false, e
 function clearChildren(element) {
   while (element.firstChild) {
     element.removeChild(element.firstChild);
+  }
+}
+
+function getAccessToken() {
+  try {
+    return window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+  } catch (error) {
+    return null;
+  }
+}
+
+function setAccessToken(accessToken) {
+  try {
+    window.localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, accessToken);
+  } catch (error) {
+    // Ignore localStorage failures in the static viewer.
+  }
+}
+
+function clearAccessToken() {
+  try {
+    window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  } catch (error) {
+    // Ignore localStorage failures in the static viewer.
   }
 }
 
@@ -402,8 +427,17 @@ function highlightResultRow(row) {
   }, 1500);
 }
 
-async function fetchApi(url) {
-  return fetch(url);
+async function fetchApi(url, init = {}) {
+  const headers = new Headers(init.headers || {});
+  const accessToken = getAccessToken();
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+
+  return fetch(url, {
+    ...init,
+    headers,
+  });
 }
 
 async function loadStudy(studyId, resultId) {
