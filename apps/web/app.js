@@ -9,6 +9,14 @@ const studySection = document.getElementById("study");
 const techniqueSection = document.getElementById("technique");
 const errorSection = document.getElementById("error");
 const errorMessageEl = document.getElementById("error-message");
+const authLoggedOutEl = document.getElementById("auth-logged-out");
+const authLoggedInEl = document.getElementById("auth-logged-in");
+const authEmailEl = document.getElementById("auth-email");
+const authPasswordEl = document.getElementById("auth-password");
+const authLoginEl = document.getElementById("auth-login");
+const authRegisterEl = document.getElementById("auth-register");
+const authLogoutEl = document.getElementById("auth-logout");
+const authStatusEl = document.getElementById("auth-status");
 
 const breadcrumbCurrentEl = document.getElementById("breadcrumb-current");
 
@@ -96,6 +104,177 @@ function clearAccessToken() {
   } catch (error) {
     // Ignore localStorage failures in the static viewer.
   }
+}
+
+function setAuthStatus(message) {
+  if (!authStatusEl) {
+    return;
+  }
+  authStatusEl.textContent = message;
+}
+
+function setAuthBusyState(isBusy) {
+  if (authEmailEl) {
+    authEmailEl.disabled = isBusy;
+  }
+  if (authPasswordEl) {
+    authPasswordEl.disabled = isBusy;
+  }
+  if (authLoginEl) {
+    authLoginEl.disabled = isBusy;
+  }
+  if (authRegisterEl) {
+    authRegisterEl.disabled = isBusy;
+  }
+  if (authLogoutEl) {
+    authLogoutEl.disabled = isBusy;
+  }
+}
+
+function renderLoggedOutState(message = "Logged out") {
+  if (authLoggedOutEl) {
+    authLoggedOutEl.hidden = false;
+  }
+  if (authLoggedInEl) {
+    authLoggedInEl.hidden = true;
+  }
+  setAuthStatus(message);
+}
+
+function renderLoggedInState(mePayload) {
+  if (authLoggedOutEl) {
+    authLoggedOutEl.hidden = true;
+  }
+  if (authLoggedInEl) {
+    authLoggedInEl.hidden = false;
+  }
+  setAuthStatus(`Logged in as ${mePayload.email} (${mePayload.plan_key})`);
+}
+
+function getAuthFormData() {
+  const email = authEmailEl ? authEmailEl.value.trim().toLowerCase() : "";
+  const password = authPasswordEl ? authPasswordEl.value : "";
+  return { email, password };
+}
+
+function clearAuthFormPassword() {
+  if (authPasswordEl) {
+    authPasswordEl.value = "";
+  }
+}
+
+function readApiErrorDetail(payload, fallbackDetail) {
+  if (payload && typeof payload.detail === "string" && payload.detail.trim()) {
+    return payload.detail;
+  }
+  return fallbackDetail;
+}
+
+async function fetchMe() {
+  const accessToken = getAccessToken();
+  if (!accessToken) {
+    renderLoggedOutState();
+    return null;
+  }
+
+  const response = await fetchApi(`${API_BASE_URL}/v1/auth/me`);
+  if (response.status === 401) {
+    clearAccessToken();
+    renderLoggedOutState("Session expired. Logged out.");
+    return null;
+  }
+  if (!response.ok) {
+    let detail = `Unable to verify login (${response.status}).`;
+    try {
+      const payload = await response.json();
+      detail = readApiErrorDetail(payload, detail);
+    } catch (error) {
+      // Ignore JSON parse failures for error handling.
+    }
+    setAuthStatus(detail);
+    return null;
+  }
+
+  const payload = await response.json();
+  renderLoggedInState(payload);
+  return payload;
+}
+
+async function submitAuth(pathname, actionLabel) {
+  const { email, password } = getAuthFormData();
+  if (!email || !password) {
+    setAuthStatus("Email and password are required.");
+    return false;
+  }
+
+  setAuthBusyState(true);
+  setAuthStatus(`${actionLabel}...`);
+  try {
+    const response = await fetch(`${API_BASE_URL}${pathname}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok) {
+      const detail = readApiErrorDetail(payload, `${actionLabel} failed.`);
+      setAuthStatus(detail);
+      return false;
+    }
+
+    const accessToken = payload.access_token;
+    if (!accessToken) {
+      setAuthStatus(`${actionLabel} failed.`);
+      return false;
+    }
+
+    setAccessToken(accessToken);
+    clearAuthFormPassword();
+    await fetchMe();
+    return true;
+  } catch (error) {
+    setAuthStatus(`${actionLabel} failed.`);
+    return false;
+  } finally {
+    setAuthBusyState(false);
+  }
+}
+
+async function handleLogin() {
+  await submitAuth("/v1/auth/login", "Login");
+}
+
+async function handleRegister() {
+  await submitAuth("/v1/auth/register", "Register");
+}
+
+function handleLogout() {
+  clearAccessToken();
+  renderLoggedOutState("Logged out.");
+}
+
+function initAuthUi() {
+  if (authLoginEl) {
+    authLoginEl.addEventListener("click", () => {
+      handleLogin();
+    });
+  }
+  if (authRegisterEl) {
+    authRegisterEl.addEventListener("click", () => {
+      handleRegister();
+    });
+  }
+  if (authLogoutEl) {
+    authLogoutEl.addEventListener("click", () => {
+      handleLogout();
+    });
+  }
+
+  renderLoggedOutState();
+  fetchMe();
 }
 
 function updateBreadcrumb(route, payload) {
@@ -534,5 +713,6 @@ function handleRouteChange() {
 window.addEventListener("hashchange", handleRouteChange);
 window.addEventListener("popstate", handleRouteChange);
 
+initAuthUi();
 applyPageMetadata();
 handleRouteChange();
