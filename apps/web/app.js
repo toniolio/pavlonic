@@ -234,6 +234,7 @@ async function submitAuth(pathname, actionLabel) {
     setAccessToken(accessToken);
     clearAuthFormPassword();
     await fetchMe();
+    rerenderCurrentRoute();
     return true;
   } catch (error) {
     setAuthStatus(`${actionLabel} failed.`);
@@ -254,6 +255,18 @@ async function handleRegister() {
 function handleLogout() {
   clearAccessToken();
   renderLoggedOutState("Logged out.");
+  rerenderCurrentRoute();
+}
+
+function rerenderCurrentRoute() {
+  const route = getRouteFromLocation(window.location);
+  if (route.page === "study") {
+    loadStudy(route.id, route.resultId);
+    return;
+  }
+  if (route.page === "technique") {
+    loadTechnique(route.id);
+  }
 }
 
 function initAuthUi() {
