@@ -24,14 +24,20 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+# Allow direct execution via `python scripts/set_user_plan.py ...` without
+# requiring callers to set PYTHONPATH manually.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-from apps.api.auth import normalize_email
-from apps.api.db import get_db_url, resolve_sqlite_file_path, sqlite_url_for_file_path
-from apps.api.db_models import User
-from packages.core.entitlements import PLAN_KEY_BASIC_PAID, PLAN_KEY_FREE
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+from sqlalchemy.orm import Session  # noqa: E402
+
+from apps.api.auth import normalize_email  # noqa: E402
+from apps.api.db import get_db_url, resolve_sqlite_file_path, sqlite_url_for_file_path  # noqa: E402
+from apps.api.db_models import User  # noqa: E402
+from packages.core.entitlements import PLAN_KEY_BASIC_PAID, PLAN_KEY_FREE  # noqa: E402
 
 
 ALLOWED_PLAN_KEYS = (PLAN_KEY_FREE, PLAN_KEY_BASIC_PAID)

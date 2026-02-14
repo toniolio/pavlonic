@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -180,3 +182,32 @@ def test_set_user_plan_main_fails_on_duplicate_email_and_makes_no_partial_update
     assert "Multiple users found for email: dupe@example.com" in captured.err
     assert captured.out == ""
     assert _plan_keys_for_email(db_path, "dupe@example.com") == ["free", "free"]
+
+
+def test_set_user_plan_script_runs_without_pythonpath(tmp_path: Path) -> None:
+    db_path = tmp_path / "users.db"
+    _create_users_table(db_path, unique_email=True)
+    _insert_user(db_path, user_id="u-1", email="shell@example.com", plan_key="free")
+
+    repo_root = Path(__file__).resolve().parents[3]
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "scripts/set_user_plan.py",
+            "--email",
+            "shell@example.com",
+            "--plan",
+            "basic_paid",
+            "--db",
+            str(db_path),
+        ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 0
+    assert "Updated plan_key for shell@example.com: free -> basic_paid" in proc.stdout
+    assert proc.stderr == ""
+    assert _plan_keys_for_email(db_path, "shell@example.com") == ["basic_paid"]
