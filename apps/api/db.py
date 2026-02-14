@@ -2,6 +2,7 @@
 
 How it works:
     - get_db_url reads PAVLONIC_DB_URL with a default fallback.
+    - sqlite_url_for_file_path converts a filesystem path into a sqlite file URL.
     - resolve_sqlite_file_path validates sqlite file URLs and returns a Path.
     - init_sqlite_file creates parent directories and touches the sqlite file.
 
@@ -27,6 +28,23 @@ def get_db_url(env: Mapping[str, str] = os.environ) -> str:
     """Return the configured DB URL, defaulting to the local sqlite file."""
     value = env.get("PAVLONIC_DB_URL", "").strip()
     return value if value else DEFAULT_DB_URL
+
+
+def sqlite_url_for_file_path(path: str | Path) -> str:
+    """Return a sqlite file URL for a filesystem path."""
+    raw_value = str(path).strip()
+    if not raw_value:
+        raise ValueError("SQLite file path must be a non-empty value.")
+
+    db_path = Path(raw_value)
+    if db_path.is_absolute():
+        db_url = f"sqlite:////{db_path.as_posix().lstrip('/')}"
+    else:
+        db_url = f"sqlite:///{db_path.as_posix()}"
+
+    # Validate using the canonical sqlite URL parsing rules.
+    resolve_sqlite_file_path(db_url)
+    return db_url
 
 
 def resolve_sqlite_file_path(db_url: str) -> Path:
