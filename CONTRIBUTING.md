@@ -39,6 +39,22 @@ Then open:
 - API: `http://127.0.0.1:8000/v1/studies/0001`
 - Web: `http://127.0.0.1:8001/`
 
+## Local paid-access validation
+
+Paid access is derived server-side from the authenticated user's `plan_key`.
+The legacy `X-Pavlonic-Entitlement` header override is removed and ignored.
+
+1. Start local services:
+- `make db-reset`
+- `make db-seed`
+- `make dev`
+2. Register and login in the Account panel at `http://127.0.0.1:8001/`.
+3. Flip plan to paid:
+- `python scripts/set_user_plan.py --email <email> --plan basic_paid`
+4. Refresh the viewer and confirm paid content appears.
+5. Flip back to free if needed:
+- `python scripts/set_user_plan.py --email <email> --plan free`
+
 Web route examples:
 
 - Canonical study route: `http://127.0.0.1:8001/#/studies/0001`

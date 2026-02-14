@@ -42,18 +42,36 @@ export PAVLONIC_AUTH_JWT_SECRET="dev-only-change-me"
 # export PAVLONIC_AUTH_BCRYPT_ROUNDS="12"
 ```
 
-Then hit the API endpoints (default public vs paid override). `X-Pavlonic-Entitlement` is a dev-only testing override and must not be enabled or used in production:
+Paid access is now determined server-side from the authenticated user's `plan_key`.
+The legacy `X-Pavlonic-Entitlement` header override has been removed and is ignored by the API.
+
+Local paid-access validation workflow:
+
+1. Start local services:
 
 ```bash
-# Default public (no header)
-curl http://127.0.0.1:8000/v1/studies/0001
-curl http://127.0.0.1:8000/v1/techniques/spaced-practice
-
-# Paid override
-curl -H "X-Pavlonic-Entitlement: paid" http://127.0.0.1:8000/v1/studies/0001
+make db-reset
+make db-seed
+make dev
 ```
 
-Auth smoke (register -> login -> me):
+2. Register and login in the Account panel at `http://127.0.0.1:8001/`.
+
+3. Flip plan to paid:
+
+```bash
+python scripts/set_user_plan.py --email <email> --plan basic_paid
+```
+
+4. Refresh the viewer and confirm paid content appears.
+
+5. Flip back to free if needed:
+
+```bash
+python scripts/set_user_plan.py --email <email> --plan free
+```
+
+API auth smoke (register -> login -> me):
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/v1/auth/register \
