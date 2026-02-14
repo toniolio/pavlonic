@@ -27,6 +27,30 @@ def _token_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_auth_register_cors_preflight_allows_local_web_origin(seeded_db) -> None:
+    origin = "http://127.0.0.1:8001"
+    response = client.options(
+        "/v1/auth/register",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,authorization",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
+
+    allowed_methods = response.headers["access-control-allow-methods"].lower()
+    assert "get" in allowed_methods
+    assert "post" in allowed_methods
+    assert "options" in allowed_methods
+
+    allowed_headers = response.headers["access-control-allow-headers"].lower()
+    assert "content-type" in allowed_headers
+    assert "authorization" in allowed_headers
+
+
 def test_register_success(seeded_db) -> None:
     response = client.post(
         "/v1/auth/register",
