@@ -9,6 +9,7 @@ from apps.api.db import (
     get_db_url,
     init_sqlite_file,
     resolve_sqlite_file_path,
+    sqlite_url_for_file_path,
 )
 
 
@@ -43,6 +44,19 @@ def test_resolve_sqlite_file_path_accepts_relative_path() -> None:
 def test_resolve_sqlite_file_path_accepts_absolute_path() -> None:
     path = resolve_sqlite_file_path("sqlite:////tmp/pavlonic.db")
     assert path == Path("/tmp/pavlonic.db")
+
+
+def test_sqlite_url_for_file_path_accepts_relative_path() -> None:
+    assert sqlite_url_for_file_path("data/private/pavlonic.db") == "sqlite:///data/private/pavlonic.db"
+
+
+def test_sqlite_url_for_file_path_accepts_absolute_path() -> None:
+    assert sqlite_url_for_file_path(Path("/tmp/pavlonic.db")) == "sqlite:////tmp/pavlonic.db"
+
+
+def test_sqlite_url_for_file_path_rejects_empty_value() -> None:
+    with pytest.raises(ValueError, match="non-empty"):
+        sqlite_url_for_file_path("   ")
 
 
 def test_init_sqlite_file_writes_header(tmp_path: Path) -> None:
